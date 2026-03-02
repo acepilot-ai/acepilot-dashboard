@@ -1,20 +1,36 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+function getUsers(): Record<string, { password: string; role: string }> {
+  const users: Record<string, { password: string; role: string }> = {};
+  if (process.env.DASHBOARD_USERNAME && process.env.DASHBOARD_PASSWORD) {
+    users[process.env.DASHBOARD_USERNAME] = {
+      password: process.env.DASHBOARD_PASSWORD,
+      role: "SUPER_ADMIN",
+    };
+  }
+  if (process.env.TAYLOR_DASHBOARD_USERNAME && process.env.TAYLOR_DASHBOARD_PASSWORD) {
+    users[process.env.TAYLOR_DASHBOARD_USERNAME] = {
+      password: process.env.TAYLOR_DASHBOARD_PASSWORD,
+      role: "ADMIN",
+    };
+  }
+  return users;
+}
+
 async function login(formData: FormData) {
   "use server";
+  const username = (formData.get("username") as string || "").trim();
   const password = formData.get("password") as string;
-  const username = formData.get("username") as string;
-  if (
-    username === process.env.DASHBOARD_USERNAME &&
-    password === process.env.DASHBOARD_PASSWORD
-  ) {
-    const cookieStore = await cookies();
-    cookieStore.set("auth", password, {
-      httpOnly: true,
-      maxAge: 86400 * 30,
-      path: "/",
-    });
+  const users = getUsers();
+  const user = users[username];
+
+  if (user && user.password === password) {
+    const jar = await cookies();
+    const opts = { maxAge: 86400 * 30, path: "/" } as const;
+    jar.set("auth",     password,   { ...opts, httpOnly: true  });
+    jar.set("ace_user", username,   { ...opts, httpOnly: false });
+    jar.set("ace_role", user.role,  { ...opts, httpOnly: false });
     redirect("/");
   } else {
     redirect("/login?error=1");
@@ -52,7 +68,7 @@ export default async function LoginPage({
           <img
             src="/ace-logo.png"
             alt="AcePilot"
-            style={{ width: 64, height: 64, marginBottom: 24 }}
+            style={{ width: 64, height: 64, marginBottom: 20 }}
           />
           <div style={{ fontSize: 10, color: "#555570", letterSpacing: 3 }}>ACEPILOT.AI</div>
           <div style={{ fontSize: 22, color: "#C9A84C", fontWeight: 700, letterSpacing: 2 }}>MISSION CONTROL</div>

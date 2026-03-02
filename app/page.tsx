@@ -130,24 +130,34 @@ function ActivityFeed({ items }: { items: ActivityItem[] }) {
   );
 }
 
+function getCookie(name: string): string {
+  if (typeof document === "undefined") return "";
+  const m = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return m ? m[2] : "";
+}
+
 export default function Dashboard() {
   const [nav, setNav] = useState<NavItem>("mission");
   const [time, setTime] = useState(new Date());
+  const [role, setRole] = useState<string>("SUPER_ADMIN");
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
+    setRole(getCookie("ace_role") || "SUPER_ADMIN");
     return () => clearInterval(t);
   }, []);
 
   const agents: AgentRowProps[] = [
-    { name: "outreach.py", status: "idle", lastRun: "Today 08:05", nextRun: "Tomorrow 08:05", todayCount: 138 },
-    { name: "reply-monitor.py", status: "running", lastRun: "5 min ago", nextRun: "25 min", todayCount: 0 },
-    { name: "stephie-outreach.py", status: "idle", lastRun: "Today 18:00", nextRun: "Tomorrow 18:00", todayCount: 50 },
-    { name: "morning-report.py", status: "idle", lastRun: "Today 07:55", nextRun: "Tomorrow 07:55", todayCount: 1 },
-    { name: "pipeline-monitor.py", status: "idle", lastRun: "Today 09:00", nextRun: "Tomorrow 09:00", todayCount: 1 },
-    { name: "tripwire-monitor.py", status: "running", lastRun: "1 min ago", nextRun: "14 min", todayCount: 0 },
-    { name: "taylor-email-cleanup.py", status: "idle", lastRun: "Today 18:00", nextRun: "Tomorrow 06:00", todayCount: 2 },
-    { name: "nightly-review.py", status: "idle", lastRun: "Today 02:00", nextRun: "Tomorrow 02:00", todayCount: 1 },
+    { name: "ace",                    status: "running", lastRun: "always on",   nextRun: "continuous",       todayCount: 0 },
+    { name: "rex",                    status: "idle",    lastRun: "on handoff",  nextRun: "on handoff",       todayCount: 0 },
+    { name: "outreach.py",            status: "idle",    lastRun: "Today 08:05", nextRun: "Tomorrow 08:05",   todayCount: 138 },
+    { name: "reply-monitor.py",       status: "running", lastRun: "5 min ago",   nextRun: "25 min",           todayCount: 0 },
+    { name: "stephie-outreach.py",    status: "idle",    lastRun: "Today 18:00", nextRun: "Tomorrow 18:00",   todayCount: 50 },
+    { name: "morning-report.py",      status: "idle",    lastRun: "Today 07:55", nextRun: "Tomorrow 07:55",   todayCount: 1 },
+    { name: "pipeline-monitor.py",    status: "idle",    lastRun: "Today 09:00", nextRun: "Tomorrow 09:00",   todayCount: 1 },
+    { name: "tripwire-monitor.py",    status: "running", lastRun: "1 min ago",   nextRun: "14 min",           todayCount: 0 },
+    { name: "taylor-email-cleanup.py",status: "idle",    lastRun: "Today 18:00", nextRun: "Tomorrow 06:00",   todayCount: 2 },
+    { name: "nightly-review.py",      status: "idle",    lastRun: "Today 02:00", nextRun: "Tomorrow 02:00",   todayCount: 1 },
   ];
 
   const closers: CloserRowProps[] = [
@@ -170,13 +180,14 @@ export default function Dashboard() {
     { ts: "02:00", type: "SCAN", msg: "Nightly review complete — memory consolidated" },
   ];
 
-  const navItems: { id: NavItem; label: string }[] = [
-    { id: "mission", label: "Mission Control" },
-    { id: "pipeline", label: "Pipeline" },
-    { id: "outreach", label: "Outreach" },
-    { id: "agents", label: "Agents" },
-    { id: "settings", label: "Settings" },
+  const allNavItems: { id: NavItem; label: string; roles: string[] }[] = [
+    { id: "mission",  label: "Mission Control", roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "pipeline", label: "Pipeline",        roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "outreach", label: "Outreach",        roles: ["SUPER_ADMIN"] },
+    { id: "agents",   label: "Agents",          roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "settings", label: "Settings",        roles: ["SUPER_ADMIN"] },
   ];
+  const navItems = allNavItems.filter(n => n.roles.includes(role));
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: DARK, color: TEXT, fontFamily: "monospace" }}>
@@ -226,6 +237,19 @@ export default function Dashboard() {
           <div style={{ fontSize: 10, color: MUTED, marginTop: 8, fontFamily: "monospace" }}>
             {time.toLocaleTimeString("en-US", { hour12: false, timeZone: "America/Los_Angeles" })} PST
           </div>
+          <div style={{ fontSize: 9, color: role === "SUPER_ADMIN" ? GOLD : BLUE, letterSpacing: 1, marginTop: 6 }}>
+            {role === "SUPER_ADMIN" ? "SUPER ADMIN" : "ADMIN"}
+          </div>
+          <button onClick={() => {
+            document.cookie = "auth=; max-age=0; path=/";
+            document.cookie = "ace_user=; max-age=0; path=/";
+            document.cookie = "ace_role=; max-age=0; path=/";
+            window.location.href = "/login";
+          }} style={{
+            marginTop: 10, background: "none", border: `1px solid ${BORDER}`,
+            borderRadius: 6, padding: "6px 10px", color: MUTED, fontSize: 10,
+            cursor: "pointer", letterSpacing: 1, width: "100%",
+          }}>SIGN OUT</button>
         </div>
       </div>
 
@@ -394,15 +418,16 @@ export default function Dashboard() {
           {/* AGENTS */}
           {nav === "agents" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-                <StatCard label="Total Scripts" value="8" sub="Active cron jobs" pulse />
-                <StatCard label="Running Now" value="2" sub="reply-monitor + tripwire" color={GREEN} />
-                <StatCard label="Errors Today" value="1" sub="Encoding crash — fixed" color={RED} />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                <StatCard label="Total Agents" value="2" sub="Ace · Rex" pulse />
+                <StatCard label="Cron Scripts" value="8" sub="Active scheduled jobs" />
+                <StatCard label="Running Now" value="3" sub="reply-monitor + tripwire + ace" color={GREEN} />
+                <StatCard label="Errors Today" value="0" sub="All clear" color={GREEN} />
               </div>
               <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
                 <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ALL AGENTS</span>
-                  <span style={{ fontSize: 10, color: MUTED }}>HEAD AGENT: ACE @ ACEPILOT.AI</span>
+                  <span style={{ fontSize: 10, color: MUTED }}>ACE ↔ REX via PILOT protocol</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 140px 140px 80px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
                   {["SCRIPT", "STATUS", "LAST RUN", "NEXT RUN", "TODAY"].map((h, i) => (
