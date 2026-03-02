@@ -48,7 +48,12 @@ export default async function LoginPage({
         flexDirection: "column",
         gap: 24,
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+          <img
+            src="/ace-logo.png"
+            alt="AcePilot"
+            style={{ width: 64, height: 64, marginBottom: 24 }}
+          />
           <div style={{ fontSize: 10, color: "#555570", letterSpacing: 3 }}>ACEPILOT.AI</div>
           <div style={{ fontSize: 22, color: "#C9A84C", fontWeight: 700, letterSpacing: 2 }}>MISSION CONTROL</div>
           <div style={{ fontSize: 11, color: "#555570" }}>Authorized personnel only</div>
