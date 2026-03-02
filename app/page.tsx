@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const GOLD = "#C9A84C";
 const DARK = "#080810";
@@ -126,6 +126,171 @@ function ActivityFeed({ items }: { items: ActivityItem[] }) {
           <span style={{ fontSize: 12, color: TEXT, fontFamily: "monospace" }}>{item.msg}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ChatPanel({ role }: { role: string }) {
+  const agent = role === "ADMIN" ? "rex" : "ace";
+  const agentLabel = role === "ADMIN" ? "Rex" : "Ace";
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: "user" as const, content: input.trim() };
+    const next = [...messages, userMsg];
+    setMessages(next);
+    setInput("");
+    setLoading(true);
+    try {
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agent, messages: next }),
+      });
+      const data = await resp.json();
+      setMessages(prev => [...prev, { role: "assistant", content: data.content || data.error || "Error" }]);
+    } catch {
+      setMessages(prev => [...prev, { role: "assistant", content: "Connection error." }]);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{
+      position: "fixed",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: 200,
+      background: PANEL,
+      borderTop: `1px solid ${open ? GOLD : BORDER}`,
+      height: open ? 340 : 44,
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+      transition: "height 0.2s ease, border-color 0.2s ease",
+    }}>
+      {/* Collapsed bar / header */}
+      <div onClick={() => setOpen(o => !o)} style={{
+        height: 44,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "0 28px",
+        cursor: "pointer",
+        userSelect: "none",
+        borderBottom: open ? `1px solid ${BORDER}` : "none",
+      }}>
+        <img src="/ace-logo.png" alt="" style={{ width: 20, height: 20, opacity: 0.85 }} />
+        <span style={{ fontSize: 11, color: GOLD, letterSpacing: 2, fontFamily: "monospace" }}>
+          TALK TO {agentLabel.toUpperCase()}
+        </span>
+        {messages.length > 0 && !open && (
+          <span style={{ fontSize: 10, color: MUTED, marginLeft: 6, fontFamily: "monospace" }}>
+            ({messages.length} msg{messages.length !== 1 ? "s" : ""})
+          </span>
+        )}
+        <span style={{ marginLeft: "auto", color: MUTED, fontSize: 12, fontFamily: "monospace" }}>
+          {open ? "▼" : "▲"}
+        </span>
+      </div>
+
+      {/* Messages */}
+      <div ref={scrollRef} style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "14px 28px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}>
+        {messages.length === 0 && (
+          <div style={{ color: MUTED, fontSize: 11, fontFamily: "monospace", textAlign: "center", paddingTop: 16 }}>
+            {agentLabel} is standing by. Ask anything.
+          </div>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{
+              maxWidth: "72%",
+              background: m.role === "user" ? "#14142A" : DARK,
+              border: `1px solid ${m.role === "user" ? "#2A2A5E" : BORDER}`,
+              borderRadius: 8,
+              padding: "8px 14px",
+              fontSize: 12,
+              color: m.role === "user" ? GOLD : TEXT,
+              fontFamily: "monospace",
+              lineHeight: 1.55,
+              whiteSpace: "pre-wrap",
+            }}>{m.content}</div>
+          </div>
+        ))}
+        {loading && (
+          <div style={{ display: "flex", justifyContent: "flex-start" }}>
+            <div style={{
+              background: DARK, border: `1px solid ${BORDER}`,
+              borderRadius: 8, padding: "8px 14px",
+              fontSize: 12, color: MUTED, fontFamily: "monospace",
+            }}>{agentLabel} is thinking...</div>
+          </div>
+        )}
+      </div>
+
+      {/* Input row */}
+      <div style={{
+        height: 48,
+        flexShrink: 0,
+        borderTop: `1px solid ${BORDER}`,
+        display: "flex",
+        alignItems: "center",
+        padding: "0 16px",
+        gap: 10,
+      }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder={`Message ${agentLabel}...`}
+          disabled={loading}
+          style={{
+            flex: 1,
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            color: TEXT,
+            fontSize: 12,
+            fontFamily: "monospace",
+          }}
+        />
+        <button
+          onClick={send}
+          disabled={loading || !input.trim()}
+          style={{
+            background: loading || !input.trim() ? "transparent" : GOLD,
+            border: `1px solid ${loading || !input.trim() ? BORDER : GOLD}`,
+            borderRadius: 6,
+            padding: "5px 16px",
+            color: loading || !input.trim() ? MUTED : DARK,
+            fontSize: 11,
+            fontWeight: 700,
+            cursor: loading || !input.trim() ? "default" : "pointer",
+            fontFamily: "monospace",
+            letterSpacing: 1,
+          }}
+        >SEND</button>
+      </div>
     </div>
   );
 }
@@ -482,13 +647,15 @@ export default function Dashboard() {
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "12px 32px", borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "12px 32px", borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 44 }}>
           <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>ACEPILOT.AI — MISSION CONTROL v0.1</span>
           <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>
             {time.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour12: false })} PST
           </span>
         </div>
       </div>
+
+      <ChatPanel role={role} />
     </div>
   );
 }
