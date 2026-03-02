@@ -131,8 +131,8 @@ function ActivityFeed({ items }: { items: ActivityItem[] }) {
 }
 
 function ChatPanel({ role }: { role: string }) {
-  const agent = role === "ADMIN" ? "rex" : "ace";
-  const agentLabel = role === "ADMIN" ? "Rex" : "Ace";
+  const agent = role === "ADMIN" ? "trinity" : "ace";
+  const agentLabel = role === "ADMIN" ? "Trinity" : "Ace";
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [input, setInput] = useState("");
@@ -314,7 +314,7 @@ export default function Dashboard() {
 
   const agents: AgentRowProps[] = [
     { name: "ace",                    status: "running", lastRun: "always on",   nextRun: "continuous",       todayCount: 0 },
-    { name: "rex",                    status: "idle",    lastRun: "on handoff",  nextRun: "on handoff",       todayCount: 0 },
+    { name: "trinity",                    status: "idle",    lastRun: "on handoff",  nextRun: "on handoff",       todayCount: 0 },
     { name: "outreach.py",            status: "idle",    lastRun: "Today 08:05", nextRun: "Tomorrow 08:05",   todayCount: 138 },
     { name: "reply-monitor.py",       status: "running", lastRun: "5 min ago",   nextRun: "25 min",           todayCount: 0 },
     { name: "stephie-outreach.py",    status: "idle",    lastRun: "Today 18:00", nextRun: "Tomorrow 18:00",   todayCount: 50 },
@@ -584,7 +584,7 @@ export default function Dashboard() {
           {nav === "agents" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-                <StatCard label="Total Agents" value="2" sub="Ace · Rex" pulse />
+                <StatCard label="Total Agents" value="2" sub="Ace · Trinity" pulse />
                 <StatCard label="Cron Scripts" value="8" sub="Active scheduled jobs" />
                 <StatCard label="Running Now" value="3" sub="reply-monitor + tripwire + ace" color={GREEN} />
                 <StatCard label="Errors Today" value="0" sub="All clear" color={GREEN} />
@@ -592,7 +592,7 @@ export default function Dashboard() {
               <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
                 <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ALL AGENTS</span>
-                  <span style={{ fontSize: 10, color: MUTED }}>ACE ↔ REX via PILOT protocol</span>
+                  <span style={{ fontSize: 10, color: MUTED }}>ACE ↔ TRINITY via PILOT protocol</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 140px 140px 80px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
                   {["SCRIPT", "STATUS", "LAST RUN", "NEXT RUN", "TODAY"].map((h, i) => (
