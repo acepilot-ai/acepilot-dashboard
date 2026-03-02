@@ -197,8 +197,9 @@ export default function Dashboard() {
       }}>
         {/* Logo */}
         <div style={{ padding: "0 24px 28px", borderBottom: `1px solid ${BORDER}` }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: GOLD, letterSpacing: 2 }}>ACE</div>
-          <div style={{ fontSize: 10, color: MUTED, letterSpacing: 3, marginTop: 2 }}>PILOT.AI</div>
+          <img src="/ace-logo.png" alt="AcePilot"
+            style={{ width: 48, height: 48 }} />
+          <div style={{ fontSize: 10, color: MUTED, letterSpacing: 3, marginTop: 6 }}>ACEPILOT.AI</div>
         </div>
 
         {/* Nav */}
