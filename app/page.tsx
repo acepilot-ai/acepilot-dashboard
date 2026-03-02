@@ -405,13 +405,19 @@ export default function Dashboard() {
           <div style={{ fontSize: 9, color: role === "SUPER_ADMIN" ? GOLD : BLUE, letterSpacing: 1, marginTop: 6 }}>
             {role === "SUPER_ADMIN" ? "SUPER ADMIN" : "ADMIN"}
           </div>
+          <a href="/account" style={{
+            marginTop: 10, display: "block", background: "none", border: `1px solid ${BORDER}`,
+            borderRadius: 6, padding: "6px 10px", color: MUTED, fontSize: 10,
+            cursor: "pointer", letterSpacing: 1, width: "100%", textAlign: "center",
+            textDecoration: "none",
+          }}>ACCOUNT</a>
           <button onClick={() => {
             document.cookie = "auth=; max-age=0; path=/";
             document.cookie = "ace_user=; max-age=0; path=/";
             document.cookie = "ace_role=; max-age=0; path=/";
             window.location.href = "/login";
           }} style={{
-            marginTop: 10, background: "none", border: `1px solid ${BORDER}`,
+            marginTop: 6, background: "none", border: `1px solid ${BORDER}`,
             borderRadius: 6, padding: "6px 10px", color: MUTED, fontSize: 10,
             cursor: "pointer", letterSpacing: 1, width: "100%",
           }}>SIGN OUT</button>
