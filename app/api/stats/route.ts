@@ -79,7 +79,7 @@ async function buildFromLocal() {
     pds.total++;
     pds.by_outcome[cls]++;
 
-    const rowDate = row.timestamp ? row.timestamp.slice(0, 10) : "";
+    const rowDate = (row.ts || row.timestamp || "").slice(0, 10);
     if (rowDate === TODAY) {
       pds.today++;
       pds.today_by_outcome[cls]++;
@@ -116,7 +116,7 @@ async function buildFromLocal() {
     const cls = classifyOutcome(row.outcome);
     stephie.total++;
     stephie.by_outcome[cls]++;
-    const rowDate = row.timestamp ? row.timestamp.slice(0, 10) : "";
+    const rowDate = (row.ts || row.timestamp || "").slice(0, 10);
     if (rowDate === TODAY) {
       stephie.today++;
       stephie.today_by_outcome[cls]++;
@@ -137,26 +137,29 @@ async function buildFromLocal() {
   const activityItems: Array<{ ts: string; type: string; msg: string; _sort: number }> = [];
 
   for (const row of (submissions as Record<string, string>[]).slice(-100)) {
-    if (!row.timestamp) continue;
+    const rts = row.ts || row.timestamp || "";
+    if (!rts) continue;
     const cls = classifyOutcome(row.outcome || "");
     const type = cls === "error" ? "ERROR" : "SEND";
-    const biz = row.business_name || row.business || "unknown";
-    const location = row.location || row.city || "";
+    const biz = row.name || row.business_name || row.business || "unknown";
+    const addr = row.address || "";
+    const city = addr ? addr.split(",")[1]?.trim() || "" : "";
     activityItems.push({
-      ts: row.timestamp.slice(11, 16),
+      ts: rts.slice(11, 16),
       type,
-      msg: `PDS → ${biz}${location ? ` (${location})` : ""} — ${row.outcome}`,
-      _sort: new Date(row.timestamp).getTime(),
+      msg: `PDS → ${biz}${city ? ` (${city})` : ""} — ${row.outcome}`,
+      _sort: new Date(rts).getTime(),
     });
   }
 
   for (const r of (replies as Record<string, string>[]).slice(-20)) {
-    if (!r.timestamp) continue;
+    const rts = r.ts || r.timestamp || "";
+    if (!rts) continue;
     activityItems.push({
-      ts: r.timestamp.slice(11, 16),
+      ts: rts.slice(11, 16),
       type: "REPLY",
       msg: `Reply from ${r.from || "unknown"} — ${r.classification || "unclassified"}`,
-      _sort: new Date(r.timestamp).getTime(),
+      _sort: new Date(rts).getTime(),
     });
   }
 
