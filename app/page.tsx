@@ -39,16 +39,40 @@ const SEAT_MAP: Record<string, { name: string; senderName: string; ghlId: string
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, sub, color, pulse }: {
-  label: string; value: string | number; sub?: string; color?: string; pulse?: boolean;
+function StatCard({ label, value, sub, color, pulse, onClick }: {
+  label: string; value: string | number; sub?: string; color?: string; pulse?: boolean; onClick?: () => void;
 }) {
   return (
-    <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px", display: "flex", flexDirection: "column", gap: 6, position: "relative", overflow: "hidden" }}>
+    <div onClick={onClick} style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px", display: "flex", flexDirection: "column", gap: 6, position: "relative", overflow: "hidden", cursor: onClick ? "pointer" : "default", transition: "border-color 0.15s" }} onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.borderColor = GOLD; }} onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = BORDER; }}>
       {pulse && <span style={{ position: "absolute", top: 14, right: 14, width: 8, height: 8, borderRadius: "50%", background: GREEN, boxShadow: `0 0 8px ${GREEN}`, animation: "pulse 2s infinite" }} />}
+      {onClick && <span style={{ position: "absolute", bottom: 10, right: 14, fontSize: 9, color: MUTED, fontFamily: "monospace", letterSpacing: 1 }}>DRILL DOWN ›</span>}
       <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED, textTransform: "uppercase", fontFamily: "monospace" }}>{label}</span>
       <span style={{ fontSize: 32, fontWeight: 700, color: color || TEXT, fontFamily: "'Courier New', monospace", lineHeight: 1 }}>{value}</span>
       {sub && <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{sub}</span>}
     </div>
+  );
+}
+
+// ── Modal (1.3 base) ──────────────────────────────────────────────────────────
+
+function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+  if (!open) return null;
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(8,8,16,0.8)" }} />
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 401, width: "min(560px, 95vw)", maxHeight: "80vh", background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 16, display: "flex", flexDirection: "column", animation: "fadeIn 0.15s ease" }}>
+        <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+          <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED, fontFamily: "monospace" }}>{title}</span>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "4px 12px", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: "monospace" }}>ESC</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>{children}</div>
+      </div>
+    </>
   );
 }
 
@@ -793,6 +817,7 @@ export default function Dashboard() {
   const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
   const [activityFilter, setActivityFilter]     = useState({ sender: "", trade: "", eventType: "" });
   const [selectedAgent, setSelectedAgent]       = useState<string | null>(null);
+  const [drillDown, setDrillDown]               = useState<string | null>(null);
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
       ...n,
@@ -1006,9 +1031,9 @@ export default function Dashboard() {
           {nav === "mission" && role !== "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-                <StatCard label="Total Contacted" value={totalContacted.toLocaleString()} sub="All time, all campaigns" pulse />
-                <StatCard label="Today's Sends" value={todaySends} sub={`PDS: ${pds?.today ?? 0} · Stephie: ${stephie?.today ?? 0}`} color={GOLD} />
-                <StatCard label="Reply Rate" value={replyRate} sub={`${replies?.total ?? 0} replies / ${totalContacted} sends`} />
+                <StatCard label="Total Contacted" value={totalContacted.toLocaleString()} sub="All time, all campaigns" pulse onClick={() => setDrillDown("total")} />
+                <StatCard label="Today's Sends" value={todaySends} sub={`PDS: ${pds?.today ?? 0} · Stephie: ${stephie?.today ?? 0}`} color={GOLD} onClick={() => setDrillDown("today")} />
+                <StatCard label="Reply Rate" value={replyRate} sub={`${replies?.total ?? 0} replies / ${totalContacted} sends`} onClick={() => setDrillDown("replies")} />
                 <StatCard label="Pending Approvals" value="0" sub="Approval queue clear" color={GREEN} />
               </div>
 
@@ -1294,6 +1319,98 @@ export default function Dashboard() {
       <SlidePanel open={!!selectedAgent} onClose={() => setSelectedAgent(null)} title="AGENT LOG">
         {selectedAgent && <AgentLogPanel script={selectedAgent} />}
       </SlidePanel>
+
+      {/* 1.3 — Stat card drill-down modals */}
+      <Modal open={drillDown === "total"} onClose={() => setDrillDown(null)} title="TOTAL CONTACTED — BREAKDOWN">
+        {drillDown === "total" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {[
+                { label: "PDS Total",     value: pds?.total ?? 0,                color: TEXT },
+                { label: "Stephie Total", value: stephie?.total ?? 0,            color: TEXT },
+                { label: "Forms",         value: (pds?.by_outcome.form ?? 0) + (stephie?.by_outcome.form ?? 0),   color: BLUE },
+                { label: "Emails",        value: (pds?.by_outcome.email ?? 0) + (stephie?.by_outcome.email ?? 0), color: GOLD },
+                { label: "Skipped",       value: (pds?.by_outcome.skip ?? 0) + (stephie?.by_outcome.skip ?? 0),   color: MUTED },
+                { label: "Errors",        value: (pds?.by_outcome.error ?? 0) + (stephie?.by_outcome.error ?? 0), color: RED },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ background: DARK, borderRadius: 8, padding: 14 }}>
+                  <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: "monospace" }}>{value.toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: DARK, borderRadius: 10, padding: 16 }}>
+              <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 10 }}>BY SENDER (PDS)</div>
+              {pds?.by_sender && Object.entries(pds.by_sender).sort((a, b) => b[1].total - a[1].total).map(([name, counts]) => (
+                <div key={name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${BORDER}` }}>
+                  <span style={{ fontSize: 11, color: TEXT, fontFamily: "monospace" }}>{name}</span>
+                  <span style={{ fontSize: 11, color: GOLD, fontFamily: "monospace" }}>{counts.total.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={drillDown === "today"} onClose={() => setDrillDown(null)} title="TODAY'S SENDS — BREAKDOWN">
+        {drillDown === "today" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {[
+                { label: "PDS Today",     value: pds?.today ?? 0,                          color: TEXT },
+                { label: "Stephie Today", value: stephie?.today ?? 0,                      color: TEXT },
+                { label: "Forms",         value: (pds?.today_by_outcome.form ?? 0) + (stephie?.today_by_outcome.form ?? 0),   color: BLUE },
+                { label: "Emails",        value: (pds?.today_by_outcome.email ?? 0) + (stephie?.today_by_outcome.email ?? 0), color: GOLD },
+                { label: "Skipped",       value: (pds?.today_by_outcome.skip ?? 0) + (stephie?.today_by_outcome.skip ?? 0),   color: MUTED },
+                { label: "Errors",        value: (pds?.today_by_outcome.error ?? 0) + (stephie?.today_by_outcome.error ?? 0), color: RED },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ background: DARK, borderRadius: 8, padding: 14 }}>
+                  <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: "monospace" }}>{value.toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: DARK, borderRadius: 10, padding: 16 }}>
+              <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 10 }}>BY SENDER TODAY (PDS)</div>
+              {pds?.by_sender && Object.entries(pds.by_sender).filter(([, c]) => c.today > 0).sort((a, b) => b[1].today - a[1].today).map(([name, counts]) => (
+                <div key={name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${BORDER}` }}>
+                  <span style={{ fontSize: 11, color: TEXT, fontFamily: "monospace" }}>{name}</span>
+                  <span style={{ fontSize: 11, color: GOLD, fontFamily: "monospace" }}>{counts.today}</span>
+                </div>
+              ))}
+              {pds?.by_sender && Object.values(pds.by_sender).every(c => c.today === 0) && (
+                <div style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>No sends logged today yet.</div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={drillDown === "replies"} onClose={() => setDrillDown(null)} title="REPLIES — BREAKDOWN">
+        {drillDown === "replies" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: DARK, borderRadius: 8, padding: 14 }}>
+              <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>TOTAL REPLIES</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: GREEN, fontFamily: "monospace" }}>{replies?.total ?? 0}</div>
+            </div>
+            <div style={{ background: DARK, borderRadius: 10, padding: 16 }}>
+              <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 10 }}>BY CLASSIFICATION</div>
+              {replies?.by_classification && Object.entries(replies.by_classification).sort((a, b) => b[1] - a[1]).map(([cls, count]) => {
+                const c = cls === "INTERESTED" ? GREEN : cls === "NOT_INTERESTED" ? RED : cls === "OOO" ? GOLD : MUTED;
+                return (
+                  <div key={cls} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${BORDER}` }}>
+                    <span style={{ fontSize: 11, color: c, fontFamily: "monospace", letterSpacing: 1 }}>{cls}</span>
+                    <span style={{ fontSize: 13, color: c, fontFamily: "monospace", fontWeight: 700 }}>{count}</span>
+                  </div>
+                );
+              })}
+              {(!replies?.by_classification || Object.keys(replies.by_classification).length === 0) && (
+                <div style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>No replies classified yet.</div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <ChatPanel role={role} messages={chatMessages} setMessages={setChatMessages} channel={channel} />
     </div>
