@@ -116,20 +116,27 @@ async function buildFromLocal() {
     total: 0, today: 0,
     by_outcome:       { form: 0, email: 0, skip: 0, error: 0 },
     today_by_outcome: { form: 0, email: 0, skip: 0, error: 0 },
-    by_sender: {} as Record<string, { total: number; today: number; form: number; email: number; replies: number; interested: number }>,
-    by_trade:  {} as Record<string, { total: number; form: number; email: number; replies: number; interested: number }>,
+    by_sender:    {} as Record<string, { total: number; today: number; form: number; email: number; replies: number; interested: number }>,
+    by_trade:     {} as Record<string, { total: number; form: number; email: number; replies: number; interested: number }>,
+    by_territory: {} as Record<string, { total: number; form: number; email: number; rolling_30d: Array<{ date: string; total: number }>; top_trades: Array<{ trade: string; count: number }> }>,
     rolling_7d:  [] as Array<{ date: string; total: number; form: number; email: number; replies: number }>,
     rolling_30d: [] as Array<{ date: string; total: number; form: number; email: number }>,
   };
 
   const rolling: Record<string, { total: number; form: number; email: number }> = {};
+  // territory rolling: terr → date → count
+  const terrRolling: Record<string, Record<string, number>> = {};
+  // territory trade counts: terr → trade → count
+  const terrTrades: Record<string, Record<string, number>> = {};
 
   for (const row of submissions as Record<string, string>[]) {
     if (!row.outcome) continue;
-    const cls     = classifyOutcome(row.outcome);
-    const rowDate = (row.ts || row.timestamp || "").slice(0, 10);
-    const sender  = row.sender || "unknown";
-    const trade   = row.trade  || "Other";
+    const cls      = classifyOutcome(row.outcome);
+    const rowDate  = (row.ts || row.timestamp || "").slice(0, 10);
+    const sender   = row.sender || "unknown";
+    const trade    = row.trade  || "Other";
+    const addr     = row.address || "";
+    const territory = addr ? deriveTerritory(addr) : "Other";
 
     pds.total++;
     pds.by_outcome[cls]++;
@@ -152,13 +159,43 @@ async function buildFromLocal() {
     if (cls === "form")  pds.by_trade[trade].form++;
     if (cls === "email") pds.by_trade[trade].email++;
 
-    // rolling daily
+    // by_territory
+    if (!pds.by_territory[territory]) pds.by_territory[territory] = { total: 0, form: 0, email: 0, rolling_30d: [], top_trades: [] };
+    pds.by_territory[territory].total++;
+    if (cls === "form")  pds.by_territory[territory].form++;
+    if (cls === "email") pds.by_territory[territory].email++;
+
+    // territory rolling daily
+    if (rowDate) {
+      if (!terrRolling[territory]) terrRolling[territory] = {};
+      terrRolling[territory][rowDate] = (terrRolling[territory][rowDate] || 0) + 1;
+    }
+
+    // territory trade counts
+    if (trade && trade !== "Other") {
+      if (!terrTrades[territory]) terrTrades[territory] = {};
+      terrTrades[territory][trade] = (terrTrades[territory][trade] || 0) + 1;
+    }
+
+    // global rolling daily
     if (rowDate) {
       if (!rolling[rowDate]) rolling[rowDate] = { total: 0, form: 0, email: 0 };
       rolling[rowDate].total++;
       if (cls === "form")  rolling[rowDate].form++;
       if (cls === "email") rolling[rowDate].email++;
     }
+  }
+
+  // Fill territory rolling_30d and top_trades
+  for (const terr of Object.keys(pds.by_territory)) {
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      pds.by_territory[terr].rolling_30d.push({ date: d, total: terrRolling[terr]?.[d] || 0 });
+    }
+    pds.by_territory[terr].top_trades = Object.entries(terrTrades[terr] || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([trade, count]) => ({ trade, count }));
   }
 
   // Cross-ref replies/interested into by_sender and by_trade
@@ -349,7 +386,7 @@ export async function GET() {
         total: 0, today: 0,
         by_outcome: { form: 0, email: 0, skip: 0, error: 0 },
         today_by_outcome: { form: 0, email: 0, skip: 0, error: 0 },
-        by_sender: {}, by_trade: {}, rolling_7d: [], rolling_30d: [],
+        by_sender: {}, by_trade: {}, by_territory: {}, rolling_7d: [], rolling_30d: [],
       },
       stephie: {
         total: 0, today: 0,

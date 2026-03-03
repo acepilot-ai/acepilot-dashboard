@@ -1272,7 +1272,7 @@ export default function Dashboard() {
   const [selectedAgent, setSelectedAgent]       = useState<string | null>(null);
   const [drillDown, setDrillDown]               = useState<string | null>(null);
   const [pipelineTab, setPipelineTab]           = useState<"closers" | "contacts" | "opportunities">("closers");
-  const [analyticsTab, setAnalyticsTab]         = useState<"volume" | "trades" | "senders">("volume");
+  const [analyticsTab, setAnalyticsTab]         = useState<"volume" | "trades" | "senders" | "territory">("volume");
   const [selectedCloser, setSelectedCloser]     = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
@@ -1723,7 +1723,7 @@ export default function Dashboard() {
               .sort((a, b) => b.sends - a.sends)
               .slice(0, 20);
 
-            const TAB_BTN = (id: "volume" | "trades" | "senders", label: string) => (
+            const TAB_BTN = (id: "volume" | "trades" | "senders" | "territory", label: string) => (
               <button key={id} onClick={() => setAnalyticsTab(id)} style={{ padding: "6px 18px", background: analyticsTab === id ? GOLD : "transparent", color: analyticsTab === id ? DARK : MUTED, border: `1px solid ${analyticsTab === id ? GOLD : BORDER}`, borderRadius: 6, fontSize: 10, fontFamily: "monospace", letterSpacing: 1, cursor: "pointer", fontWeight: analyticsTab === id ? 700 : 400 }}>
                 {label}
               </button>
@@ -1733,9 +1733,10 @@ export default function Dashboard() {
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 {/* Tab bar */}
                 <div style={{ display: "flex", gap: 8 }}>
-                  {TAB_BTN("volume",  "VOLUME")}
-                  {TAB_BTN("trades",  "TRADES")}
-                  {TAB_BTN("senders", "SENDERS")}
+                  {TAB_BTN("volume",    "VOLUME")}
+                  {TAB_BTN("trades",    "TRADES")}
+                  {TAB_BTN("senders",   "SENDERS")}
+                  {TAB_BTN("territory", "TERRITORY")}
                 </div>
 
                 {/* 2.1 — VOLUME */}
@@ -1823,6 +1824,126 @@ export default function Dashboard() {
                     <SenderTable byS={pdsD?.by_sender ?? {}} />
                   </div>
                 )}
+
+                {/* 2.4 — TERRITORY */}
+                {analyticsTab === "territory" && (() => {
+                  const byT = pdsD?.by_territory ?? {};
+                  const territories = Object.keys(byT);
+
+                  // Territory colours
+                  const TERR_COLOR: Record<string, string> = {
+                    "Coachella Valley": GOLD,
+                    "LA County":        BLUE,
+                    "Charlotte NC":     GREEN,
+                    "Other":            MUTED,
+                  };
+
+                  // Bar chart data — one entry per territory
+                  const barData = territories
+                    .map(t => ({
+                      name:    t === "Coachella Valley" ? "Coachella" : t,
+                      sends:   byT[t].total,
+                      forms:   byT[t].form,
+                      emails:  byT[t].email,
+                      reach:   byT[t].total > 0 ? +((byT[t].form + byT[t].email) / byT[t].total * 100).toFixed(1) : 0,
+                    }))
+                    .sort((a, b) => b.sends - a.sends);
+
+                  // 30-day trend — one line per territory
+                  const trend30: Record<string, number>[] = [];
+                  const dates30 = byT[territories[0]]?.rolling_30d?.map(d => d.date.slice(5)) ?? [];
+                  for (let i = 0; i < dates30.length; i++) {
+                    const pt: Record<string, number | string> = { date: dates30[i] };
+                    for (const t of territories) {
+                      pt[t === "Coachella Valley" ? "Coachella" : t] = byT[t].rolling_30d?.[i]?.total ?? 0;
+                    }
+                    trend30.push(pt as Record<string, number>);
+                  }
+
+                  if (territories.length === 0) return (
+                    <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 11, fontFamily: "monospace" }}>
+                      No territory data yet — address field required in submissions JSONL
+                    </div>
+                  );
+
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                      {/* Summary cards */}
+                      <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(territories.length, 4)}, 1fr)`, gap: 12 }}>
+                        {territories.sort((a, b) => byT[b].total - byT[a].total).map(t => {
+                          const v = byT[t];
+                          const reachRate = v.total > 0 ? ((v.form + v.email) / v.total * 100).toFixed(1) : "0.0";
+                          const color = TERR_COLOR[t] ?? MUTED;
+                          return (
+                            <div key={t} style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
+                              <div style={{ fontSize: 9, color: MUTED, fontFamily: "monospace", letterSpacing: 1, marginBottom: 8 }}>TERRITORY</div>
+                              <div style={{ fontSize: 13, color, fontFamily: "monospace", fontWeight: 700, marginBottom: 10 }}>{t.toUpperCase()}</div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                                {[
+                                  { l: "SENDS",    v: v.total.toLocaleString(),  c: TEXT  },
+                                  { l: "REACH %",  v: `${reachRate}%`,           c: color },
+                                  { l: "FORMS",    v: v.form.toLocaleString(),   c: BLUE  },
+                                  { l: "EMAILS",   v: v.email.toLocaleString(),  c: BLUE  },
+                                ].map(({ l, v: val, c }) => (
+                                  <div key={l}>
+                                    <div style={{ fontSize: 8, color: MUTED, fontFamily: "monospace", letterSpacing: 1 }}>{l}</div>
+                                    <div style={{ fontSize: 13, color: c, fontFamily: "monospace", fontWeight: 600 }}>{val}</div>
+                                  </div>
+                                ))}
+                              </div>
+                              {v.top_trades.length > 0 && (
+                                <div style={{ marginTop: 10, borderTop: `1px solid ${BORDER}`, paddingTop: 8 }}>
+                                  <div style={{ fontSize: 8, color: MUTED, fontFamily: "monospace", letterSpacing: 1, marginBottom: 4 }}>TOP TRADES</div>
+                                  {v.top_trades.map(tr => (
+                                    <div key={tr.trade} style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                                      <span style={{ fontSize: 9, color: MUTED, fontFamily: "monospace" }}>{tr.trade.replace(/_/g, " ")}</span>
+                                      <span style={{ fontSize: 9, color: TEXT, fontFamily: "monospace" }}>{tr.count}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* 30-day territory trend */}
+                      <ChartCard title="30-DAY SEND VOLUME BY TERRITORY">
+                        <ResponsiveContainer width="100%" height={220}>
+                          <LineChart data={trend30} margin={{ top: 4, right: 16, bottom: 0, left: -10 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
+                            <XAxis dataKey="date" tick={CHART_TICK} interval={4} />
+                            <YAxis tick={CHART_TICK} />
+                            <Tooltip {...CHART_TOOLTIP} />
+                            <Legend {...CHART_LEGEND} />
+                            {territories.map(t => {
+                              const key = t === "Coachella Valley" ? "Coachella" : t;
+                              return <Line key={t} type="monotone" dataKey={key} stroke={TERR_COLOR[t] ?? MUTED} strokeWidth={2} dot={false} />;
+                            })}
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </ChartCard>
+
+                      {/* Reach rate comparison */}
+                      <ChartCard title="REACH RATE BY TERRITORY (FORMS + EMAILS / TOTAL SENDS)">
+                        <ResponsiveContainer width="100%" height={160}>
+                          <BarChart data={barData} margin={{ top: 4, right: 16, bottom: 0, left: -10 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
+                            <XAxis dataKey="name" tick={CHART_TICK} />
+                            <YAxis tick={CHART_TICK} unit="%" domain={[0, 100]} />
+                            <Tooltip {...CHART_TOOLTIP} formatter={(v: number | undefined) => [`${v ?? 0}%`, "Reach Rate"]} />
+                            <Bar dataKey="reach" radius={[4, 4, 0, 0]}>
+                              {barData.map((entry, i) => {
+                                const fullName = territories.sort((a, b) => byT[b].total - byT[a].total)[i] ?? "Other";
+                                return <Cell key={i} fill={TERR_COLOR[fullName] ?? MUTED} />;
+                              })}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </ChartCard>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })()}

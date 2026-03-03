@@ -35,8 +35,9 @@ export interface StatsCache {
     today: number;
     by_outcome: { form: number; email: number; skip: number; error: number };
     today_by_outcome: { form: number; email: number; skip: number; error: number };
-    by_sender: Record<string, { total: number; today: number; form: number; email: number; replies: number; interested: number }>;
-    by_trade:  Record<string, { total: number; form: number; email: number; replies: number; interested: number }>;
+    by_sender:    Record<string, { total: number; today: number; form: number; email: number; replies: number; interested: number }>;
+    by_trade:     Record<string, { total: number; form: number; email: number; replies: number; interested: number }>;
+    by_territory: Record<string, { total: number; form: number; email: number; rolling_30d: Array<{ date: string; total: number }>; top_trades: Array<{ trade: string; count: number }> }>;
     rolling_7d:  Array<{ date: string; total: number; form: number; email: number; replies: number }>;
     rolling_30d: Array<{ date: string; total: number; form: number; email: number }>;
   };
