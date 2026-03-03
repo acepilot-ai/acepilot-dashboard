@@ -9,6 +9,8 @@ import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
+import dynamic from "next/dynamic";
+const TerritoryMap = dynamic(() => import("./components/TerritoryMap"), { ssr: false });
 
 const GOLD = "#C9A84C";
 const DARK = "#080810";
@@ -541,10 +543,9 @@ function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => 
         <div style={{ fontSize: 15, color: TEXT, fontFamily: "monospace", fontWeight: 700, lineHeight: 1.4 }}>{item.business_name || item.from_email || item.msg}</div>
       </div>
       {!hasDetail && (
-        <div style={{ background: DARK, borderRadius: 8, padding: 12, border: `1px solid ${BORDER}` }}>
-          <div style={{ fontSize: 10, color: GOLD, fontFamily: "monospace", letterSpacing: 1, marginBottom: 4 }}>GIST MODE — LIMITED DETAIL</div>
-          <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", lineHeight: 1.6 }}>
-            Full contact detail (name, address, website, GHL link) is available when the dashboard runs with local JSONL access. The Gist cache only stores summary data. Run push-stats-cache.py with enriched fields to unlock.
+        <div style={{ background: DARK, borderRadius: 8, padding: 10, border: `1px solid ${BORDER}` }}>
+          <div style={{ fontSize: 9, color: MUTED, fontFamily: "monospace", letterSpacing: 1 }}>
+            SUMMARY VIEW — detailed contact fields available after next cache refresh
           </div>
         </div>
       )}
@@ -1827,63 +1828,57 @@ export default function Dashboard() {
 
                 {/* 2.4 — TERRITORY */}
                 {analyticsTab === "territory" && (() => {
-                  const byT = pdsD?.by_territory ?? {};
-                  const territories = Object.keys(byT);
+                  const byT  = pdsD?.by_territory ?? {};
+                  const byC  = pdsD?.by_city ?? {};
+                  const territories = [...Object.keys(byT)].sort((a, b) => byT[b].total - byT[a].total);
 
-                  // Territory colours
-                  const TERR_COLOR: Record<string, string> = {
-                    "Coachella Valley": GOLD,
-                    "LA County":        BLUE,
-                    "Charlotte NC":     GREEN,
-                    "Other":            MUTED,
-                  };
+                  // Dynamic color palette — colors assigned by sorted territory name, not hardcoded
+                  const PALETTE_COLORS = [GOLD, BLUE, GREEN, "#9B59B6", "#E74C3C", "#1ABC9C", "#F39C12"];
+                  const sortedTerrNames = [...territories].sort();
+                  const terrColor = (t: string) => PALETTE_COLORS[sortedTerrNames.indexOf(t) % PALETTE_COLORS.length] ?? MUTED;
 
-                  // Bar chart data — one entry per territory
-                  const barData = territories
-                    .map(t => ({
-                      name:    t === "Coachella Valley" ? "Coachella" : t,
-                      sends:   byT[t].total,
-                      forms:   byT[t].form,
-                      emails:  byT[t].email,
-                      reach:   byT[t].total > 0 ? +((byT[t].form + byT[t].email) / byT[t].total * 100).toFixed(1) : 0,
-                    }))
-                    .sort((a, b) => b.sends - a.sends);
+                  // Bar chart data
+                  const barData = territories.map(t => ({
+                    name:  t.length > 14 ? t.slice(0, 13) + "…" : t,
+                    full:  t,
+                    sends: byT[t].total,
+                    reach: byT[t].total > 0 ? +((byT[t].form + byT[t].email) / byT[t].total * 100).toFixed(1) : 0,
+                  }));
 
                   // 30-day trend — one line per territory
-                  const trend30: Record<string, number>[] = [];
                   const dates30 = byT[territories[0]]?.rolling_30d?.map(d => d.date.slice(5)) ?? [];
-                  for (let i = 0; i < dates30.length; i++) {
-                    const pt: Record<string, number | string> = { date: dates30[i] };
+                  const trend30 = dates30.map((date, i) => {
+                    const pt: Record<string, number | string> = { date };
                     for (const t of territories) {
-                      pt[t === "Coachella Valley" ? "Coachella" : t] = byT[t].rolling_30d?.[i]?.total ?? 0;
+                      pt[t.length > 14 ? t.slice(0, 13) + "…" : t] = byT[t].rolling_30d?.[i]?.total ?? 0;
                     }
-                    trend30.push(pt as Record<string, number>);
-                  }
+                    return pt as Record<string, number>;
+                  });
 
                   if (territories.length === 0) return (
                     <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 11, fontFamily: "monospace" }}>
-                      No territory data yet — address field required in submissions JSONL
+                      No territory data — address field must be populated in outreach logs
                     </div>
                   );
 
                   return (
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                      {/* Summary cards */}
+                      {/* Summary cards — one per territory, sorted by volume */}
                       <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(territories.length, 4)}, 1fr)`, gap: 12 }}>
-                        {territories.sort((a, b) => byT[b].total - byT[a].total).map(t => {
-                          const v = byT[t];
-                          const reachRate = v.total > 0 ? ((v.form + v.email) / v.total * 100).toFixed(1) : "0.0";
-                          const color = TERR_COLOR[t] ?? MUTED;
+                        {territories.map(t => {
+                          const v     = byT[t];
+                          const color = terrColor(t);
+                          const reach = v.total > 0 ? ((v.form + v.email) / v.total * 100).toFixed(1) : "0.0";
                           return (
-                            <div key={t} style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16 }}>
-                              <div style={{ fontSize: 9, color: MUTED, fontFamily: "monospace", letterSpacing: 1, marginBottom: 8 }}>TERRITORY</div>
-                              <div style={{ fontSize: 13, color, fontFamily: "monospace", fontWeight: 700, marginBottom: 10 }}>{t.toUpperCase()}</div>
+                            <div key={t} style={{ background: PANEL, border: `1px solid ${color}33`, borderRadius: 10, padding: 16 }}>
+                              <div style={{ fontSize: 9, color: MUTED, fontFamily: "monospace", letterSpacing: 1, marginBottom: 6 }}>TERRITORY</div>
+                              <div style={{ fontSize: 12, color, fontFamily: "monospace", fontWeight: 700, marginBottom: 10 }}>{t.toUpperCase()}</div>
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                                 {[
-                                  { l: "SENDS",    v: v.total.toLocaleString(),  c: TEXT  },
-                                  { l: "REACH %",  v: `${reachRate}%`,           c: color },
-                                  { l: "FORMS",    v: v.form.toLocaleString(),   c: BLUE  },
-                                  { l: "EMAILS",   v: v.email.toLocaleString(),  c: BLUE  },
+                                  { l: "SENDS",   v: v.total.toLocaleString(), c: TEXT  },
+                                  { l: "REACH %", v: `${reach}%`,              c: color },
+                                  { l: "FORMS",   v: v.form.toLocaleString(),  c: BLUE  },
+                                  { l: "EMAILS",  v: v.email.toLocaleString(), c: BLUE  },
                                 ].map(({ l, v: val, c }) => (
                                   <div key={l}>
                                     <div style={{ fontSize: 8, color: MUTED, fontFamily: "monospace", letterSpacing: 1 }}>{l}</div>
@@ -1907,9 +1902,23 @@ export default function Dashboard() {
                         })}
                       </div>
 
-                      {/* 30-day territory trend */}
+                      {/* Send density map */}
+                      <ChartCard title="SEND DENSITY MAP — CIRCLE SIZE = VOLUME · COLOR = TERRITORY">
+                        <TerritoryMap byCity={byC} />
+                        {/* Legend — dynamic from data */}
+                        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 10 }}>
+                          {sortedTerrNames.map((t, i) => (
+                            <div key={t} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ width: 10, height: 10, borderRadius: "50%", background: PALETTE_COLORS[i % PALETTE_COLORS.length], display: "inline-block", opacity: 0.8 }} />
+                              <span style={{ fontSize: 9, color: MUTED, fontFamily: "monospace" }}>{t}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </ChartCard>
+
+                      {/* 30-day trend */}
                       <ChartCard title="30-DAY SEND VOLUME BY TERRITORY">
-                        <ResponsiveContainer width="100%" height={220}>
+                        <ResponsiveContainer width="100%" height={200}>
                           <LineChart data={trend30} margin={{ top: 4, right: 16, bottom: 0, left: -10 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
                             <XAxis dataKey="date" tick={CHART_TICK} interval={4} />
@@ -1917,26 +1926,23 @@ export default function Dashboard() {
                             <Tooltip {...CHART_TOOLTIP} />
                             <Legend {...CHART_LEGEND} />
                             {territories.map(t => {
-                              const key = t === "Coachella Valley" ? "Coachella" : t;
-                              return <Line key={t} type="monotone" dataKey={key} stroke={TERR_COLOR[t] ?? MUTED} strokeWidth={2} dot={false} />;
+                              const key = t.length > 14 ? t.slice(0, 13) + "…" : t;
+                              return <Line key={t} type="monotone" dataKey={key} stroke={terrColor(t)} strokeWidth={2} dot={false} />;
                             })}
                           </LineChart>
                         </ResponsiveContainer>
                       </ChartCard>
 
                       {/* Reach rate comparison */}
-                      <ChartCard title="REACH RATE BY TERRITORY (FORMS + EMAILS / TOTAL SENDS)">
-                        <ResponsiveContainer width="100%" height={160}>
+                      <ChartCard title="REACH RATE BY TERRITORY">
+                        <ResponsiveContainer width="100%" height={140}>
                           <BarChart data={barData} margin={{ top: 4, right: 16, bottom: 0, left: -10 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
                             <XAxis dataKey="name" tick={CHART_TICK} />
                             <YAxis tick={CHART_TICK} unit="%" domain={[0, 100]} />
                             <Tooltip {...CHART_TOOLTIP} formatter={(v: number | undefined) => [`${v ?? 0}%`, "Reach Rate"]} />
                             <Bar dataKey="reach" radius={[4, 4, 0, 0]}>
-                              {barData.map((entry, i) => {
-                                const fullName = territories.sort((a, b) => byT[b].total - byT[a].total)[i] ?? "Other";
-                                return <Cell key={i} fill={TERR_COLOR[fullName] ?? MUTED} />;
-                              })}
+                              {barData.map((entry, i) => <Cell key={i} fill={terrColor(entry.full)} />)}
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>

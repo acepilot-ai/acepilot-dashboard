@@ -38,6 +38,7 @@ export interface StatsCache {
     by_sender:    Record<string, { total: number; today: number; form: number; email: number; replies: number; interested: number }>;
     by_trade:     Record<string, { total: number; form: number; email: number; replies: number; interested: number }>;
     by_territory: Record<string, { total: number; form: number; email: number; rolling_30d: Array<{ date: string; total: number }>; top_trades: Array<{ trade: string; count: number }> }>;
+    by_city:      Record<string, { total: number; form: number; email: number; territory: string }>;
     rolling_7d:  Array<{ date: string; total: number; form: number; email: number; replies: number }>;
     rolling_30d: Array<{ date: string; total: number; form: number; email: number }>;
   };

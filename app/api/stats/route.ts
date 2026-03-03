@@ -119,6 +119,7 @@ async function buildFromLocal() {
     by_sender:    {} as Record<string, { total: number; today: number; form: number; email: number; replies: number; interested: number }>,
     by_trade:     {} as Record<string, { total: number; form: number; email: number; replies: number; interested: number }>,
     by_territory: {} as Record<string, { total: number; form: number; email: number; rolling_30d: Array<{ date: string; total: number }>; top_trades: Array<{ trade: string; count: number }> }>,
+    by_city:      {} as Record<string, { total: number; form: number; email: number; territory: string }>,
     rolling_7d:  [] as Array<{ date: string; total: number; form: number; email: number; replies: number }>,
     rolling_30d: [] as Array<{ date: string; total: number; form: number; email: number }>,
   };
@@ -164,6 +165,18 @@ async function buildFromLocal() {
     pds.by_territory[territory].total++;
     if (cls === "form")  pds.by_territory[territory].form++;
     if (cls === "email") pds.by_territory[territory].email++;
+
+    // by_city — extract city from address (addr = "Street, City, State Zip")
+    if (addr) {
+      const parts = addr.split(",");
+      const city = parts[1]?.trim();
+      if (city) {
+        if (!pds.by_city[city]) pds.by_city[city] = { total: 0, form: 0, email: 0, territory };
+        pds.by_city[city].total++;
+        if (cls === "form")  pds.by_city[city].form++;
+        if (cls === "email") pds.by_city[city].email++;
+      }
+    }
 
     // territory rolling daily
     if (rowDate) {
@@ -386,7 +399,7 @@ export async function GET() {
         total: 0, today: 0,
         by_outcome: { form: 0, email: 0, skip: 0, error: 0 },
         today_by_outcome: { form: 0, email: 0, skip: 0, error: 0 },
-        by_sender: {}, by_trade: {}, by_territory: {}, rolling_7d: [], rolling_30d: [],
+        by_sender: {}, by_trade: {}, by_territory: {}, by_city: {}, rolling_7d: [], rolling_30d: [],
       },
       stephie: {
         total: 0, today: 0,
