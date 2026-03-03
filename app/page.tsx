@@ -1274,6 +1274,7 @@ export default function Dashboard() {
   const [drillDown, setDrillDown]               = useState<string | null>(null);
   const [pipelineTab, setPipelineTab]           = useState<"closers" | "contacts" | "opportunities">("closers");
   const [analyticsTab, setAnalyticsTab]         = useState<"volume" | "trades" | "senders" | "territory">("volume");
+  const [mobileMenuOpen, setMobileMenuOpen]     = useState(false);
   const [selectedCloser, setSelectedCloser]     = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
@@ -1390,7 +1391,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: DARK, color: TEXT, fontFamily: "monospace" }}>
+    <div style={{ display: "flex", height: "100dvh", background: DARK, color: TEXT, fontFamily: "monospace", overflow: "hidden" }}>
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
@@ -1399,20 +1400,34 @@ export default function Dashboard() {
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: ${DARK}; }
         ::-webkit-scrollbar-thumb { background: ${BORDER}; border-radius: 2px; }
-        body { background: ${DARK}; }
+        body { background: ${DARK}; overflow: hidden; }
         textarea { box-sizing: border-box; }
         select { outline: none; }
+        .ace-sidebar { width: 220px; flex-shrink: 0; }
+        .ace-hamburger { display: none; }
+        @media (max-width: 767px) {
+          .ace-sidebar {
+            position: fixed !important; top: 0; left: 0; height: 100dvh;
+            z-index: 500; transform: translateX(-100%); transition: transform 0.22s ease;
+          }
+          .ace-sidebar.open { transform: translateX(0); }
+          .ace-hamburger { display: flex !important; }
+          .ace-overlay { display: block !important; }
+        }
       `}</style>
 
+      {/* Mobile overlay */}
+      <div onClick={() => setMobileMenuOpen(false)} className="ace-overlay" style={{ display: "none", position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 499 }} />
+
       {/* Sidebar */}
-      <div style={{ width: 220, background: PANEL, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", padding: "24px 0", position: "fixed", top: 0, left: 0, height: "100vh" }}>
+      <div className={`ace-sidebar${mobileMenuOpen ? " open" : ""}`} style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", padding: "24px 0", height: "100dvh", overflowY: "auto" }}>
         <div style={{ padding: "0 24px 28px", borderBottom: `1px solid ${BORDER}` }}>
           <img src="/ace-logo.png" alt="AcePilot" style={{ width: 48, height: 48 }} />
           <div style={{ fontSize: 10, color: MUTED, letterSpacing: 3, marginTop: 6 }}>ACEPILOT.AI</div>
         </div>
         <nav style={{ padding: "20px 0", flex: 1 }}>
           {navItems.map(item => (
-            <button key={item.id} onClick={() => setNav(item.id)} style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 24px", background: "none", border: "none", cursor: "pointer", fontSize: 12, letterSpacing: 1, color: nav === item.id ? GOLD : MUTED, borderLeft: nav === item.id ? `2px solid ${GOLD}` : "2px solid transparent", transition: "all 0.15s" }}>{item.label.toUpperCase()}</button>
+            <button key={item.id} onClick={() => { setNav(item.id); setMobileMenuOpen(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 24px", background: "none", border: "none", cursor: "pointer", fontSize: 12, letterSpacing: 1, color: nav === item.id ? GOLD : MUTED, borderLeft: nav === item.id ? `2px solid ${GOLD}` : "2px solid transparent", transition: "all 0.15s" }}>{item.label.toUpperCase()}</button>
           ))}
         </nav>
         <div style={{ padding: "16px 24px", borderTop: `1px solid ${BORDER}` }}>
@@ -1433,12 +1448,15 @@ export default function Dashboard() {
       </div>
 
       {/* Main */}
-      <div style={{ marginLeft: 220, flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowY: "auto" }}>
         {/* Top bar */}
-        <div style={{ padding: "16px 32px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: PANEL, position: "sticky", top: 0, zIndex: 10 }}>
-          <div>
-            <div style={{ fontSize: 14, color: TEXT, letterSpacing: 2 }}>{navItems.find(n => n.id === nav)?.label.toUpperCase()}</div>
-            <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+        <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: PANEL, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button className="ace-hamburger" onClick={() => setMobileMenuOpen(o => !o)} style={{ display: "none", background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 10px", color: MUTED, cursor: "pointer", fontSize: 16, alignItems: "center" }}>☰</button>
+            <div>
+              <div style={{ fontSize: 14, color: TEXT, letterSpacing: 2 }}>{navItems.find(n => n.id === nav)?.label.toUpperCase()}</div>
+              <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
