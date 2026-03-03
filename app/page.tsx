@@ -95,16 +95,17 @@ function AgentRow({ name, status, lastRun, nextRun, todayCount, onClick }: {
   );
 }
 
-function CloserRow({ name, territory, leads, sends, cold }: {
-  name: string; territory: string; leads: number; sends: number; cold: number;
+function CloserRow({ name, territory, leads, sends, cold, onClick }: {
+  name: string; territory: string; leads: number; sends: number; cold: number; onClick?: () => void;
 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 80px 80px 80px", padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "center", gap: 12 }}>
+    <div onClick={onClick} style={{ display: "grid", gridTemplateColumns: "1fr 160px 80px 80px 80px 20px", padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "center", gap: 12, cursor: onClick ? "pointer" : "default", transition: "background 0.15s" }} onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}>
       <span style={{ color: TEXT, fontFamily: "monospace", fontSize: 13 }}>{name}</span>
       <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{territory}</span>
       <span style={{ fontSize: 13, color: GREEN, fontFamily: "monospace", textAlign: "center" }}>{leads}</span>
       <span style={{ fontSize: 13, color: BLUE, fontFamily: "monospace", textAlign: "center" }}>{sends}</span>
       <span style={{ fontSize: 13, color: cold > 0 ? RED : MUTED, fontFamily: "monospace", textAlign: "center" }}>{cold}</span>
+      {onClick && <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>›</span>}
     </div>
   );
 }
@@ -598,6 +599,69 @@ function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => 
   );
 }
 
+// ── Closer Detail (1.4) ───────────────────────────────────────────────────────
+
+function CloserDetail({ closer, activity }: {
+  closer: { name: string; id: string; territory: string; leads: number; sends: number; cold: number };
+  activity: ActivityItem[];
+}) {
+  const recentSends = activity
+    .filter(a => a.type === "SEND" && a.sender && closer.name.toLowerCase().includes(a.sender.split(" ")[0].toLowerCase()))
+    .slice(0, 10);
+
+  const ghlUrl = closer.id
+    ? `https://app.gohighlevel.com/location/${GHL_LOCATION}/contacts/?userId=${closer.id}`
+    : null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Header */}
+      <div style={{ background: DARK, borderRadius: 10, padding: 20 }}>
+        <div style={{ fontSize: 18, color: TEXT, fontFamily: "monospace", fontWeight: 700, marginBottom: 6 }}>{closer.name}</div>
+        <div style={{ fontSize: 11, color: GOLD, fontFamily: "monospace", letterSpacing: 1 }}>{closer.territory}</div>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+        {[
+          { label: "GHL LEADS",  value: closer.leads, color: GREEN },
+          { label: "SENDS",      value: closer.sends, color: BLUE },
+          { label: "COLD DEALS", value: closer.cold,  color: closer.cold > 0 ? RED : MUTED },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ background: DARK, borderRadius: 8, padding: 14 }}>
+            <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: "monospace" }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Recent sends */}
+      <div style={{ background: DARK, borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER}` }}>
+          <span style={{ fontSize: 9, color: MUTED, letterSpacing: 1 }}>RECENT SENDS</span>
+        </div>
+        {recentSends.length === 0 ? (
+          <div style={{ padding: 14, color: MUTED, fontSize: 11, fontFamily: "monospace" }}>No recent send data in current activity window.</div>
+        ) : recentSends.map((item, i) => (
+          <div key={i} style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", flexShrink: 0 }}>{item.ts}</span>
+            <span style={{ fontSize: 11, color: item.outcome?.includes("email_sent") ? GOLD : item.outcome === "submitted" ? GREEN : MUTED, fontFamily: "monospace", flex: 1 }}>
+              {item.business_name || item.msg}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Actions */}
+      {ghlUrl && (
+        <a href={ghlUrl} target="_blank" rel="noreferrer" style={{ display: "block", background: GOLD, borderRadius: 8, padding: "11px 0", color: DARK, fontSize: 11, fontWeight: 700, letterSpacing: 2, fontFamily: "monospace", textAlign: "center", textDecoration: "none" }}>
+          VIEW IN GHL →
+        </a>
+      )}
+    </div>
+  );
+}
+
 // ── Agent Log Panel (1.2) ─────────────────────────────────────────────────────
 
 interface AgentLogData {
@@ -829,6 +893,8 @@ export default function Dashboard() {
   const [activityFilter, setActivityFilter]     = useState({ sender: "", trade: "", eventType: "" });
   const [selectedAgent, setSelectedAgent]       = useState<string | null>(null);
   const [drillDown, setDrillDown]               = useState<string | null>(null);
+  const [pipelineTab, setPipelineTab]           = useState<"closers" | "contacts" | "opportunities">("closers");
+  const [selectedCloser, setSelectedCloser]     = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
       ...n,
@@ -1156,17 +1222,46 @@ export default function Dashboard() {
                 <StatCard label="Open Opportunities" value={ghlData?.open_opportunities ?? "—"} sub="Pipeline building" />
                 <StatCard label="Cold Deals" value="0" sub="No stale deals" color={GREEN} />
               </div>
-              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}` }}>
-                  <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>CLOSER PERFORMANCE</span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 80px 80px 80px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
-                  {["CLOSER", "TERRITORY", "LEADS", "SENDS", "COLD"].map((h, i) => (
-                    <span key={i} style={{ fontSize: 10, color: MUTED, letterSpacing: 1, textAlign: i > 1 ? "center" : "left" }}>{h}</span>
-                  ))}
-                </div>
-                {closers.map((c, i) => <CloserRow key={i} {...c} />)}
+
+              {/* Tab bar */}
+              <div style={{ display: "flex", gap: 0, background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 4, width: "fit-content" }}>
+                {(["closers", "contacts", "opportunities"] as const).map(tab => (
+                  <button key={tab} onClick={() => setPipelineTab(tab)} style={{ background: pipelineTab === tab ? GOLD : "none", border: "none", borderRadius: 7, padding: "7px 18px", color: pipelineTab === tab ? DARK : MUTED, fontSize: 10, fontWeight: 700, letterSpacing: 1, cursor: "pointer", fontFamily: "monospace", transition: "all 0.15s" }}>
+                    {tab.toUpperCase()}
+                  </button>
+                ))}
               </div>
+
+              {/* CLOSERS tab */}
+              {pipelineTab === "closers" && (
+                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}` }}>
+                    <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>CLOSER PERFORMANCE</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 80px 80px 80px 20px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
+                    {["CLOSER", "TERRITORY", "LEADS", "SENDS", "COLD", ""].map((h, i) => (
+                      <span key={i} style={{ fontSize: 10, color: MUTED, letterSpacing: 1, textAlign: i > 1 ? "center" : "left" }}>{h}</span>
+                    ))}
+                  </div>
+                  {closers.map((c, i) => <CloserRow key={i} {...c} onClick={() => setSelectedCloser(c)} />)}
+                </div>
+              )}
+
+              {/* CONTACTS tab — populated in deploy 29 */}
+              {pipelineTab === "contacts" && (
+                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 40, textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: MUTED, fontFamily: "monospace", letterSpacing: 2 }}>CONTACTS TAB</div>
+                  <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", marginTop: 8 }}>GHL contact list — coming next deploy</div>
+                </div>
+              )}
+
+              {/* OPPORTUNITIES tab — populated in deploy 30 */}
+              {pipelineTab === "opportunities" && (
+                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 40, textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: MUTED, fontFamily: "monospace", letterSpacing: 2 }}>OPPORTUNITIES TAB</div>
+                  <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", marginTop: 8 }}>Open pipeline opportunities — coming next deploy</div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1320,6 +1415,11 @@ export default function Dashboard() {
           <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{time?.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour12: false }) ?? "--"} PST</span>
         </div>
       </div>
+
+      {/* 1.4 — Closer detail modal */}
+      <Modal open={!!selectedCloser} onClose={() => setSelectedCloser(null)} title="CLOSER DETAIL">
+        {selectedCloser && <CloserDetail closer={selectedCloser} activity={activity} />}
+      </Modal>
 
       {/* 1.1 — Activity detail slide panel */}
       <SlidePanel open={!!selectedActivity} onClose={() => setSelectedActivity(null)} title="ACTIVITY DETAIL">
