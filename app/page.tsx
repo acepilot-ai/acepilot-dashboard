@@ -18,6 +18,16 @@ const BLUE = "#3498DB";
 
 type NavItem = "mission" | "pipeline" | "outreach" | "agents" | "workspace" | "settings";
 
+// Seat → human + agent info. Single source of truth for role-scoped views.
+const SEAT_MAP: Record<string, { name: string; senderName: string; ghlId: string; agentHandle: string; agentName: string; territory: string }> = {
+  seat_ron:    { name: "Ron Parent",     senderName: "Ron Parent",     ghlId: "",                       agentHandle: "ace",     agentName: "Ace",     territory: "Mixed"                 },
+  seat_taylor: { name: "Taylor Posey",   senderName: "Taylor Posey",   ghlId: "ma3kHGuqV7wPGuzRymB3",  agentHandle: "trinity", agentName: "Trinity", territory: "LA"                    },
+  seat_joel:   { name: "Joel Davis",     senderName: "Joel Davis",     ghlId: "ROTliRMFnbHzsAQOluMM",  agentHandle: "atlas",   agentName: "Atlas",   territory: "Coachella Valley (760)" },
+  seat_frank:  { name: "Frank Leon",     senderName: "Frank Leon",     ghlId: "Owc8Ufm2W1dkxrwAtTpq",  agentHandle: "forge",   agentName: "Forge",   territory: "LA County"             },
+  seat_mickey: { name: "Mickey Parson",  senderName: "Mickey Parson",  ghlId: "neMkuaDwGNWQ0WAIRv9B",  agentHandle: "ridge",   agentName: "Ridge",   territory: "LA / Valley"           },
+  seat_armen:  { name: "Armen Pogosian", senderName: "Armen Pogosian", ghlId: "hLzXkVl8tladQpgHOEwQ",  agentHandle: "crest",   agentName: "Crest",   territory: "SFV / Desert"          },
+};
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, sub, color, pulse }: {
@@ -152,8 +162,9 @@ function PilotChannel({ role, channel }: { role: string; channel: ReturnType<typ
 
 // ── Workspace section ─────────────────────────────────────────────────────────
 
-function WorkspaceSection({ role, chatMessages, channel }: {
+function WorkspaceSection({ role, seatInfo, chatMessages, channel }: {
   role: string;
+  seatInfo: { name: string; senderName: string; ghlId: string; agentHandle: string; agentName: string; territory: string };
   chatMessages: { role: "user" | "assistant"; content: string }[];
   channel: ReturnType<typeof usePollingChannel>;
 }) {
@@ -166,7 +177,7 @@ function WorkspaceSection({ role, chatMessages, channel }: {
   const [newTodo, setNewTodo] = useState("");
   const addTodo = async () => {
     if (!newTodo.trim()) return;
-    const todo: Todo = { id: Date.now().toString(), text: newTodo.trim(), done: false, created_at: new Date().toISOString(), created_by: role === "SUPER_ADMIN" ? "Ron" : "Taylor" };
+    const todo: Todo = { id: Date.now().toString(), text: newTodo.trim(), done: false, created_at: new Date().toISOString(), created_by: role === "SUPER_ADMIN" ? "Ron" : role === "ADMIN" ? "Taylor" : seatInfo.name };
     await mutate({ action: "save_todos", todos: [...ws.todos, todo] });
     setNewTodo("");
   };
@@ -197,7 +208,7 @@ function WorkspaceSection({ role, chatMessages, channel }: {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const b64 = (e.target?.result as string).split(",")[1] || "";
-      await mutate({ action: "upload_file", name: file.name, size: file.size, uploaded_by: role === "SUPER_ADMIN" ? "Ron" : "Taylor", content_b64: b64 });
+      await mutate({ action: "upload_file", name: file.name, size: file.size, uploaded_by: role === "SUPER_ADMIN" ? "Ron" : role === "ADMIN" ? "Taylor" : seatInfo.name, content_b64: b64 });
     };
     reader.readAsDataURL(file);
   };
@@ -219,7 +230,7 @@ function WorkspaceSection({ role, chatMessages, channel }: {
   const TABS: { id: typeof tab; label: string }[] = [
     { id: "todos", label: "TODOS" }, { id: "notes", label: "NOTES" },
     { id: "files", label: "FILES" }, { id: "chat", label: "CHAT EXPORT" },
-    { id: "pilot", label: "PILOT CHANNEL" },
+    ...(role !== "CLOSER" ? [{ id: "pilot" as typeof tab, label: "PILOT CHANNEL" }] : []),
   ];
 
   if (loading) return <div style={{ color: MUTED, fontFamily: "monospace", fontSize: 12, padding: 32 }}>Loading workspace...</div>;
@@ -334,9 +345,11 @@ function ChatPanel({ role, messages, setMessages, channel }: {
   setMessages: React.Dispatch<React.SetStateAction<{ role: "user" | "assistant"; content: string }[]>>;
   channel: ReturnType<typeof usePollingChannel>;
 }) {
-  const agent = role === "ADMIN" ? "trinity" : "ace";
-  const agentLabel = role === "ADMIN" ? "Trinity" : "Ace";
-  const sentBy = role === "SUPER_ADMIN" ? "Ron" : "Taylor";
+  const seatId = getCookie("ace_seat");
+  const seatInfo = SEAT_MAP[seatId] || SEAT_MAP.seat_ron;
+  const agent = role === "ADMIN" ? "trinity" : role === "CLOSER" ? seatInfo.agentHandle : "ace";
+  const agentLabel = role === "ADMIN" ? "Trinity" : role === "CLOSER" ? seatInfo.agentName : "Ace";
+  const sentBy = role === "SUPER_ADMIN" ? "Ron" : role === "ADMIN" ? "Taylor" : seatInfo.name;
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -456,6 +469,7 @@ function buildAgentRows(agentsData: StatsCache["agents"] | undefined) {
 export default function Dashboard() {
   const [nav, setNav] = useState<NavItem>("mission");
   const [role, setRole] = useState<string>("SUPER_ADMIN");
+  const [seatId, setSeatId] = useState<string>("");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
 
   const time = useClock();
@@ -465,14 +479,18 @@ export default function Dashboard() {
 
   useEffect(() => {
     setRole(getCookie("ace_role") || "SUPER_ADMIN");
+    setSeatId(getCookie("ace_seat") || "");
   }, []);
 
+  // Resolve seat info for scoped views
+  const seatInfo = SEAT_MAP[seatId] || SEAT_MAP.seat_ron;
+
   const allNavItems: { id: NavItem; label: string; roles: string[] }[] = [
-    { id: "mission",   label: "Mission Control", roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "pipeline",  label: "Pipeline",        roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "mission",   label: "Mission Control", roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
+    { id: "pipeline",  label: "Pipeline",        roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
     { id: "outreach",  label: "Outreach",        roles: ["SUPER_ADMIN"] },
-    { id: "agents",    label: "Agents",          roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "workspace", label: "Workspace",       roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "agents",    label: "Agents",          roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
+    { id: "workspace", label: "Workspace",       roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
     { id: "settings",  label: "Settings",        roles: ["SUPER_ADMIN"] },
   ];
   const navItems = allNavItems.filter(n => n.roles.includes(role));
@@ -530,8 +548,8 @@ export default function Dashboard() {
           <div style={{ fontSize: 10, color: MUTED, marginTop: 8, fontFamily: "monospace" }}>
             {time.toLocaleTimeString("en-US", { hour12: false, timeZone: "America/Los_Angeles" })} PST
           </div>
-          <div style={{ fontSize: 9, color: role === "SUPER_ADMIN" ? GOLD : BLUE, letterSpacing: 1, marginTop: 6 }}>
-            {role === "SUPER_ADMIN" ? "SUPER ADMIN" : "ADMIN"}
+          <div style={{ fontSize: 9, color: role === "SUPER_ADMIN" ? GOLD : role === "ADMIN" ? BLUE : MUTED, letterSpacing: 1, marginTop: 6 }}>
+            {role === "SUPER_ADMIN" ? "OWNER" : role === "ADMIN" ? "ADMIN" : seatInfo.agentName.toUpperCase()}
           </div>
           <a href="/account" style={{ marginTop: 10, display: "block", background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 10px", color: MUTED, fontSize: 10, cursor: "pointer", letterSpacing: 1, width: "100%", textAlign: "center", textDecoration: "none" }}>ACCOUNT</a>
           <button onClick={() => { document.cookie = "auth=; max-age=0; path=/"; document.cookie = "ace_user=; max-age=0; path=/"; document.cookie = "ace_role=; max-age=0; path=/"; window.location.href = "/login"; }} style={{ marginTop: 6, background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 10px", color: MUTED, fontSize: 10, cursor: "pointer", letterSpacing: 1, width: "100%" }}>SIGN OUT</button>
@@ -555,8 +573,35 @@ export default function Dashboard() {
         {/* Content */}
         <div style={{ padding: 32, flex: 1 }}>
 
-          {/* MISSION CONTROL */}
-          {nav === "mission" && (
+          {/* MISSION CONTROL — CLOSER */}
+          {nav === "mission" && role === "CLOSER" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                <StatCard label="My Sends Today" value={pds?.by_sender[seatInfo.senderName]?.today ?? 0} sub={seatInfo.territory} color={GOLD} pulse />
+                <StatCard label="My Sends All Time" value={pds?.by_sender[seatInfo.senderName]?.total ?? 0} sub="All time outreach" />
+                <StatCard label="Territory" value="ACTIVE" sub={seatInfo.territory} color={GREEN} />
+                <StatCard label="Reply Rate" value={replyRate} sub={`${replies?.total ?? 0} total replies`} />
+              </div>
+              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}` }}>
+                  <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>RECENT ACTIVITY</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {activity.length === 0 && <div style={{ padding: 20, color: MUTED, fontSize: 11, fontFamily: "monospace" }}>No activity yet.</div>}
+                  {activity.slice(0, 10).map((item, i) => (
+                    <div key={i} style={{ display: "flex", gap: 16, padding: "10px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", whiteSpace: "nowrap", paddingTop: 2, minWidth: 80 }}>{item.ts}</span>
+                      <span style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: 1, color: item.type === "SEND" ? BLUE : item.type === "REPLY" ? GREEN : item.type === "ERROR" ? RED : GOLD, minWidth: 60, paddingTop: 2 }}>{item.type}</span>
+                      <span style={{ fontSize: 12, color: TEXT, fontFamily: "monospace" }}>{item.msg}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MISSION CONTROL — OWNER / ADMIN */}
+          {nav === "mission" && role !== "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
                 <StatCard label="Total Contacted" value={totalContacted.toLocaleString()} sub="All time, all campaigns" pulse />
@@ -619,8 +664,30 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* PIPELINE */}
-          {nav === "pipeline" && (
+          {/* PIPELINE — CLOSER */}
+          {nav === "pipeline" && role === "CLOSER" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                <StatCard label="My GHL Leads" value={closers.find(c => c.id === seatInfo.ghlId)?.leads ?? 0} sub="Contacts assigned to me" color={GREEN} pulse />
+                <StatCard label="My Sends" value={closers.find(c => c.id === seatInfo.ghlId)?.sends ?? 0} sub="Outreach attributed" color={BLUE} />
+                <StatCard label="Cold Deals" value={closers.find(c => c.id === seatInfo.ghlId)?.cold ?? 0} sub="No stale deals" color={GREEN} />
+              </div>
+              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}` }}>
+                  <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>MY PIPELINE</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 80px 80px 80px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
+                  {["CLOSER", "TERRITORY", "LEADS", "SENDS", "COLD"].map((h, i) => (
+                    <span key={i} style={{ fontSize: 10, color: MUTED, letterSpacing: 1, textAlign: i > 1 ? "center" : "left" }}>{h}</span>
+                  ))}
+                </div>
+                {closers.filter(c => c.id === seatInfo.ghlId).map((c, i) => <CloserRow key={i} {...c} />)}
+              </div>
+            </div>
+          )}
+
+          {/* PIPELINE — OWNER / ADMIN */}
+          {nav === "pipeline" && role !== "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
                 <StatCard label="Total GHL Contacts" value={ghlData?.total_contacts ?? "—"} sub="Across all closers" />
@@ -683,8 +750,40 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* AGENTS */}
-          {nav === "agents" && (
+          {/* AGENTS — CLOSER */}
+          {nav === "agents" && role === "CLOSER" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 32 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+                  <img src="/ace-logo.png" alt="" style={{ width: 40, height: 40 }} />
+                  <div>
+                    <div style={{ fontSize: 18, color: GOLD, fontFamily: "monospace", fontWeight: 700 }}>{seatInfo.agentName.toUpperCase()}</div>
+                    <div style={{ fontSize: 11, color: MUTED, letterSpacing: 2, marginTop: 4 }}>YOUR AGENT</div>
+                  </div>
+                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: GREEN, boxShadow: `0 0 6px ${GREEN}` }} />
+                    <span style={{ fontSize: 11, color: GREEN }}>ACTIVE</span>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                  <div style={{ background: DARK, borderRadius: 8, padding: 16 }}>
+                    <div style={{ fontSize: 10, color: MUTED, letterSpacing: 1, marginBottom: 6 }}>HANDLE</div>
+                    <div style={{ fontSize: 13, color: TEXT, fontFamily: "monospace" }}>@{seatInfo.agentHandle}</div>
+                  </div>
+                  <div style={{ background: DARK, borderRadius: 8, padding: 16 }}>
+                    <div style={{ fontSize: 10, color: MUTED, letterSpacing: 1, marginBottom: 6 }}>TERRITORY</div>
+                    <div style={{ fontSize: 13, color: TEXT, fontFamily: "monospace" }}>{seatInfo.territory}</div>
+                  </div>
+                </div>
+                <div style={{ color: MUTED, fontSize: 11, fontFamily: "monospace", lineHeight: 1.8 }}>
+                  Talk to {seatInfo.agentName} using the chat bar below. Your agent has access to your leads, pipeline data, and outreach stats.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* AGENTS — OWNER / ADMIN */}
+          {nav === "agents" && role !== "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
                 <StatCard label="Total Agents" value="2" sub="Ace · Trinity" pulse />
@@ -708,7 +807,7 @@ export default function Dashboard() {
           )}
 
           {/* WORKSPACE */}
-          {nav === "workspace" && <WorkspaceSection role={role} chatMessages={chatMessages} channel={channel} />}
+          {nav === "workspace" && <WorkspaceSection role={role} seatInfo={seatInfo} chatMessages={chatMessages} channel={channel} />}
 
           {/* SETTINGS */}
           {nav === "settings" && (

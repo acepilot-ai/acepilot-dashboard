@@ -1,4 +1,14 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+// Seat → GHL user ID (mirrors SEAT_MAP in page.tsx)
+const SEAT_GHL_MAP: Record<string, string> = {
+  seat_joel:   "ROTliRMFnbHzsAQOluMM",
+  seat_frank:  "Owc8Ufm2W1dkxrwAtTpq",
+  seat_mickey: "neMkuaDwGNWQ0WAIRv9B",
+  seat_armen:  "hLzXkVl8tladQpgHOEwQ",
+  seat_taylor: "ma3kHGuqV7wPGuzRymB3",
+};
 
 const GHL_BASE = "https://services.leadconnectorhq.com";
 
@@ -50,7 +60,13 @@ async function ghlGet(path: string, apiKey: string, params?: Record<string, stri
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function GET() {
-  const CACHE_KEY = "ghl_data";
+  const cookieStore = await cookies();
+  const role   = cookieStore.get("ace_role")?.value || "SUPER_ADMIN";
+  const seatId = cookieStore.get("ace_seat")?.value || "";
+  const isCloser = role === "CLOSER";
+  const myGhlId = SEAT_GHL_MAP[seatId] || "";
+
+  const CACHE_KEY = isCloser ? `ghl_data_${seatId}` : "ghl_data";
   const cached = getCached(CACHE_KEY);
   if (cached) return NextResponse.json(cached);
 
@@ -60,13 +76,31 @@ export async function GET() {
   }
 
   try {
-    // 6 parallel calls
+    if (isCloser) {
+      // CLOSER: only fetch their own contact count
+      const myCloser = CLOSERS.find(c => c.id === myGhlId);
+      if (!myCloser) return NextResponse.json({ total_contacts: 0, open_opportunities: 0, closers: [] });
+
+      const [myRes, oppRes] = await Promise.all([
+        ghlGet("/contacts/", apiKey, { assignedTo: myGhlId, limit: "1" }),
+        ghlGet("/opportunities/search", apiKey, { pipeline_id: PIPELINE_ID, status: "open", assignedTo: myGhlId, limit: "1" }),
+      ]);
+      const leads = myRes?.total ?? myRes?.meta?.total ?? 0;
+      const result = {
+        total_contacts: leads,
+        open_opportunities: oppRes?.meta?.total ?? 0,
+        closers: [{ name: myCloser.name, id: myCloser.id, territory: myCloser.territory, leads, sends: leads, cold: 0 }],
+      };
+      setCached(CACHE_KEY, result);
+      return NextResponse.json(result);
+    }
+
+    // OWNER / ADMIN: full data
     const [totalRes, ...closerResults] = await Promise.all([
       ghlGet("/contacts/", apiKey, { limit: "1" }),
       ...CLOSERS.map(c => ghlGet("/contacts/", apiKey, { assignedTo: c.id, limit: "1" })),
     ]);
 
-    // Opportunities
     const oppRes = await ghlGet("/opportunities/search", apiKey, {
       pipeline_id: PIPELINE_ID,
       status: "open",
@@ -84,8 +118,8 @@ export async function GET() {
         id: c.id,
         territory: c.territory,
         leads,
-        sends: leads, // sends = contacts assigned (proxy until we have a sends field)
-        cold: 0,      // cold deals require opportunity-level query; placeholder
+        sends: leads,
+        cold: 0,
       };
     });
 
