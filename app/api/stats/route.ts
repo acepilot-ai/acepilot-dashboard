@@ -121,10 +121,10 @@ async function buildFromLocal() {
     by_territory: {} as Record<string, { total: number; form: number; email: number; rolling_30d: Array<{ date: string; total: number }>; top_trades: Array<{ trade: string; count: number }> }>,
     by_city:      {} as Record<string, { total: number; form: number; email: number; territory: string }>,
     rolling_7d:  [] as Array<{ date: string; total: number; form: number; email: number; replies: number }>,
-    rolling_30d: [] as Array<{ date: string; total: number; form: number; email: number }>,
+    rolling_30d: [] as Array<{ date: string; total: number; form: number; email: number; skip: number; error: number }>,
   };
 
-  const rolling: Record<string, { total: number; form: number; email: number }> = {};
+  const rolling: Record<string, { total: number; form: number; email: number; skip: number; error: number }> = {};
   // territory rolling: terr → date → count
   const terrRolling: Record<string, Record<string, number>> = {};
   // territory trade counts: terr → trade → count
@@ -192,10 +192,12 @@ async function buildFromLocal() {
 
     // global rolling daily
     if (rowDate) {
-      if (!rolling[rowDate]) rolling[rowDate] = { total: 0, form: 0, email: 0 };
+      if (!rolling[rowDate]) rolling[rowDate] = { total: 0, form: 0, email: 0, skip: 0, error: 0 };
       rolling[rowDate].total++;
       if (cls === "form")  rolling[rowDate].form++;
       if (cls === "email") rolling[rowDate].email++;
+      if (cls === "skip")  rolling[rowDate].skip++;
+      if (cls === "error") rolling[rowDate].error++;
     }
   }
 
@@ -238,17 +240,17 @@ async function buildFromLocal() {
   // rolling_30d
   for (let i = 29; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-    pds.rolling_30d.push({ date: d, ...(rolling[d] || { total: 0, form: 0, email: 0 }) });
+    pds.rolling_30d.push({ date: d, ...(rolling[d] || { total: 0, form: 0, email: 0, skip: 0, error: 0 }) });
   }
 
   // ── Stephie stats ─────────────────────────────────────────────────────────
-  const stephieRolling: Record<string, number> = {};
+  const stephieRolling: Record<string, { total: number; form: number; email: number; skip: number; error: number }> = {};
   const stephie = {
     total: 0, today: 0,
     by_outcome:       { form: 0, email: 0, skip: 0, error: 0 },
     today_by_outcome: { form: 0, email: 0, skip: 0, error: 0 },
     by_sender: {} as Record<string, { total: number; today: number }>,
-    rolling_30d: [] as Array<{ date: string; total: number }>,
+    rolling_30d: [] as Array<{ date: string; total: number; form: number; email: number; skip: number; error: number }>,
   };
 
   for (const row of stephieRows as Record<string, string>[]) {
@@ -267,13 +269,20 @@ async function buildFromLocal() {
     stephie.by_sender[sender].total++;
     if (rowDate === TODAY) stephie.by_sender[sender].today++;
 
-    if (rowDate) stephieRolling[rowDate] = (stephieRolling[rowDate] || 0) + 1;
+    if (rowDate) {
+      if (!stephieRolling[rowDate]) stephieRolling[rowDate] = { total: 0, form: 0, email: 0, skip: 0, error: 0 };
+      stephieRolling[rowDate].total++;
+      if (cls === "form")  stephieRolling[rowDate].form++;
+      if (cls === "email") stephieRolling[rowDate].email++;
+      if (cls === "skip")  stephieRolling[rowDate].skip++;
+      if (cls === "error") stephieRolling[rowDate].error++;
+    }
   }
 
   // Stephie rolling_30d
   for (let i = 29; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-    stephie.rolling_30d.push({ date: d, total: stephieRolling[d] || 0 });
+    stephie.rolling_30d.push({ date: d, ...(stephieRolling[d] || { total: 0, form: 0, email: 0, skip: 0, error: 0 }) });
   }
 
   // ── Replies ───────────────────────────────────────────────────────────────
@@ -358,6 +367,37 @@ async function buildFromLocal() {
     .filter(r => (r.ts || r.timestamp)?.slice(0, 10) === TODAY).length;
   if (agentsRaw["stephie-outreach.py"]) agentsRaw["stephie-outreach.py"].today_count = stephieToday;
 
+  // ── Campaign health array (generic — one entry per configured source) ─────
+  type CampaignSrc = {
+    total: number; today: number;
+    by_outcome: { form: number; email: number; skip: number; error: number };
+    today_by_outcome: { form: number; email: number; skip: number; error: number };
+    rolling_30d: Array<{ date: string; total: number; form: number; email: number; skip: number; error: number }>;
+  };
+  function toCampaign(name: string, src: CampaignSrc) {
+    const t = src.total || 1;
+    const skip_rate  = src.by_outcome.skip  / t;
+    const error_rate = src.by_outcome.error / t;
+    const reach_rate = (src.by_outcome.form + src.by_outcome.email) / t;
+    return {
+      name,
+      total:             src.total,
+      today:             src.today,
+      by_outcome:        src.by_outcome,
+      today_by_outcome:  src.today_by_outcome,
+      rolling_30d:       src.rolling_30d,
+      skip_rate,
+      error_rate,
+      reach_rate,
+      flagged: skip_rate > 0.20 || error_rate > 0.20,
+    };
+  }
+
+  const campaigns = [
+    toCampaign(process.env.SUBMISSIONS_LABEL || "PDS Outreach",     pds),
+    toCampaign(process.env.STEPHIE_LABEL     || "Stephie Outreach", stephie),
+  ];
+
   return {
     generated_at: new Date().toISOString(),
     pds,
@@ -365,6 +405,7 @@ async function buildFromLocal() {
     replies: repliesData,
     activity,
     agents: agentsRaw,
+    campaigns,
   };
 }
 
@@ -410,6 +451,7 @@ export async function GET() {
       replies: { total: 0, by_classification: {} },
       activity: [],
       agents: {},
+      campaigns: [],
       _error: e instanceof Error ? e.message : String(e),
     });
   }

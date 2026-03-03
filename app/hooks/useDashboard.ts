@@ -28,6 +28,19 @@ export interface AgentStatus {
   status: "running" | "idle" | "error";
 }
 
+export interface CampaignHealth {
+  name: string;
+  total: number;
+  today: number;
+  by_outcome: { form: number; email: number; skip: number; error: number };
+  today_by_outcome: { form: number; email: number; skip: number; error: number };
+  rolling_30d: Array<{ date: string; total: number; form: number; email: number; skip: number; error: number }>;
+  skip_rate: number;   // 0–1
+  error_rate: number;  // 0–1
+  reach_rate: number;  // 0–1
+  flagged: boolean;    // skip_rate > 0.20 || error_rate > 0.20
+}
+
 export interface StatsCache {
   generated_at: string;
   pds: {
@@ -40,14 +53,14 @@ export interface StatsCache {
     by_territory: Record<string, { total: number; form: number; email: number; rolling_30d: Array<{ date: string; total: number }>; top_trades: Array<{ trade: string; count: number }> }>;
     by_city:      Record<string, { total: number; form: number; email: number; territory: string }>;
     rolling_7d:  Array<{ date: string; total: number; form: number; email: number; replies: number }>;
-    rolling_30d: Array<{ date: string; total: number; form: number; email: number }>;
+    rolling_30d: Array<{ date: string; total: number; form: number; email: number; skip: number; error: number }>;
   };
   stephie: {
     total: number;
     today: number;
     by_outcome: { form: number; email: number; skip: number; error: number };
     today_by_outcome: { form: number; email: number; skip: number; error: number };
-    rolling_30d: Array<{ date: string; total: number }>;
+    rolling_30d: Array<{ date: string; total: number; form: number; email: number; skip: number; error: number }>;
   };
   replies: {
     total: number;
@@ -55,6 +68,7 @@ export interface StatsCache {
   };
   activity: ActivityItem[];
   agents: Record<string, { last_modified: string; today_count: number }>;
+  campaigns: CampaignHealth[];
 }
 
 export interface GHLData {
