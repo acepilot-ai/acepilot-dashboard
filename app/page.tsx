@@ -662,6 +662,152 @@ function CloserDetail({ closer, activity }: {
   );
 }
 
+// ── Contact Detail (1.5) ──────────────────────────────────────────────────────
+
+interface ContactRecord {
+  id: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  companyName: string;
+  address: string;
+  tags: string[];
+  dateAdded: string;
+  assignedTo: string;
+  lastActivity: string;
+}
+
+function ContactDetail({ contact }: { contact: ContactRecord }) {
+  const ghlUrl = `https://app.gohighlevel.com/location/${GHL_LOCATION}/contacts/detail/${contact.id}`;
+  const fields = [
+    { label: "PHONE",       value: contact.phone },
+    { label: "EMAIL",       value: contact.email },
+    { label: "COMPANY",     value: contact.companyName },
+    { label: "ADDRESS",     value: contact.address },
+    { label: "ADDED",       value: contact.dateAdded ? new Date(contact.dateAdded).toLocaleDateString() : "" },
+    { label: "LAST ACTIVE", value: contact.lastActivity ? new Date(contact.lastActivity).toLocaleDateString() : "" },
+  ].filter(f => f.value);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ background: DARK, borderRadius: 10, padding: 18 }}>
+        <div style={{ fontSize: 18, color: TEXT, fontFamily: "monospace", fontWeight: 700, marginBottom: 4 }}>{contact.name}</div>
+        {contact.companyName && <div style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{contact.companyName}</div>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {fields.map(({ label, value }) => (
+          <div key={label} style={{ background: DARK, borderRadius: 8, padding: 12 }}>
+            <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 11, color: TEXT, fontFamily: "monospace", wordBreak: "break-all" }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      {contact.tags.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {contact.tags.map((tag, i) => (
+            <span key={i} style={{ fontSize: 10, color: GOLD, background: "rgba(201,168,76,0.1)", border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 4, padding: "2px 8px", fontFamily: "monospace" }}>{tag}</span>
+          ))}
+        </div>
+      )}
+      <a href={ghlUrl} target="_blank" rel="noreferrer" style={{ display: "block", background: GOLD, borderRadius: 8, padding: "11px 0", color: DARK, fontSize: 11, fontWeight: 700, letterSpacing: 2, fontFamily: "monospace", textAlign: "center", textDecoration: "none" }}>
+        VIEW IN GHL →
+      </a>
+    </div>
+  );
+}
+
+function ContactsPanel({ pipelineTab }: { pipelineTab: string }) {
+  const [contacts, setContacts] = useState<ContactRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [selectedContact, setSelectedContact] = useState<ContactRecord | null>(null);
+  const [closerFilter, setCloserFilter] = useState("");
+
+  const CLOSER_OPTIONS = [
+    { name: "All Closers",    id: "" },
+    { name: "Joel Davis",     id: "ROTliRMFnbHzsAQOluMM" },
+    { name: "Frank Leon",     id: "Owc8Ufm2W1dkxrwAtTpq" },
+    { name: "Mickey Parson",  id: "neMkuaDwGNWQ0WAIRv9B" },
+    { name: "Armen Pogosian", id: "hLzXkVl8tladQpgHOEwQ" },
+    { name: "Taylor Posey",   id: "ma3kHGuqV7wPGuzRymB3" },
+  ];
+
+  const load = useCallback(async (p: number, cid: string) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(p) });
+      if (cid) params.set("closerId", cid);
+      const resp = await fetch(`/api/contacts?${params}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        setContacts(data.contacts || []);
+        setTotal(data.total || 0);
+      }
+    } catch { /* silent */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (pipelineTab === "contacts") load(page, closerFilter);
+  }, [pipelineTab, page, closerFilter, load]);
+
+  const totalPages = Math.ceil(total / 20);
+
+  return (
+    <>
+      <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+        {/* Header + filter */}
+        <div style={{ padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>GHL CONTACTS</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select value={closerFilter} onChange={e => { setCloserFilter(e.target.value); setPage(1); }} style={{ background: DARK, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "4px 8px", color: MUTED, fontSize: 10, fontFamily: "monospace" }}>
+              {CLOSER_OPTIONS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{total} contacts</span>
+          </div>
+        </div>
+        {/* Column headers */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 160px 100px 20px", padding: "8px 20px", borderBottom: `1px solid ${BORDER}` }}>
+          {["NAME", "PHONE", "EMAIL", "ADDED", ""].map((h, i) => (
+            <span key={i} style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>{h}</span>
+          ))}
+        </div>
+        {/* Rows */}
+        {loading ? (
+          <div style={{ padding: 20, color: MUTED, fontSize: 11, fontFamily: "monospace" }}>Loading contacts...</div>
+        ) : contacts.length === 0 ? (
+          <div style={{ padding: 20, color: MUTED, fontSize: 11, fontFamily: "monospace" }}>No contacts found.</div>
+        ) : contacts.map((c, i) => (
+          <div key={i} onClick={() => setSelectedContact(c)} style={{ display: "grid", gridTemplateColumns: "1fr 140px 160px 100px 20px", padding: "12px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "center", cursor: "pointer", transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)"} onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = "transparent"}>
+            <div>
+              <div style={{ fontSize: 12, color: TEXT, fontFamily: "monospace" }}>{c.name}</div>
+              {c.companyName && <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{c.companyName}</div>}
+            </div>
+            <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{c.phone || "—"}</span>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email || "—"}</span>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{c.dateAdded ? new Date(c.dateAdded).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</span>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>›</span>
+          </div>
+        ))}
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ padding: "12px 20px", display: "flex", gap: 8, alignItems: "center", borderTop: `1px solid ${BORDER}` }}>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "4px 10px", color: MUTED, fontSize: 10, cursor: page === 1 ? "default" : "pointer", fontFamily: "monospace" }}>← PREV</button>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>Page {page} of {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "4px 10px", color: MUTED, fontSize: 10, cursor: page === totalPages ? "default" : "pointer", fontFamily: "monospace" }}>NEXT →</button>
+          </div>
+        )}
+      </div>
+      <Modal open={!!selectedContact} onClose={() => setSelectedContact(null)} title="CONTACT DETAIL">
+        {selectedContact && <ContactDetail contact={selectedContact} />}
+      </Modal>
+    </>
+  );
+}
+
 // ── Agent Log Panel (1.2) ─────────────────────────────────────────────────────
 
 interface AgentLogData {
@@ -1247,13 +1393,8 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* CONTACTS tab — populated in deploy 29 */}
-              {pipelineTab === "contacts" && (
-                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 40, textAlign: "center" }}>
-                  <div style={{ fontSize: 11, color: MUTED, fontFamily: "monospace", letterSpacing: 2 }}>CONTACTS TAB</div>
-                  <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", marginTop: 8 }}>GHL contact list — coming next deploy</div>
-                </div>
-              )}
+              {/* CONTACTS tab (1.5) */}
+              {pipelineTab === "contacts" && <ContactsPanel pipelineTab={pipelineTab} />}
 
               {/* OPPORTUNITIES tab — populated in deploy 30 */}
               {pipelineTab === "opportunities" && (
