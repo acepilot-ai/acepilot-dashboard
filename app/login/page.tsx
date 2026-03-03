@@ -1,55 +1,70 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-function getEnvUsers(): Record<string, { password: string; role: string }> {
-  const users: Record<string, { password: string; role: string }> = {};
-  if (process.env.DASHBOARD_USERNAME && process.env.DASHBOARD_PASSWORD) {
-    users[process.env.DASHBOARD_USERNAME] = { password: process.env.DASHBOARD_PASSWORD, role: "SUPER_ADMIN" };
-  }
-  if (process.env.TAYLOR_DASHBOARD_USERNAME && process.env.TAYLOR_DASHBOARD_PASSWORD) {
-    users[process.env.TAYLOR_DASHBOARD_USERNAME] = { password: process.env.TAYLOR_DASHBOARD_PASSWORD, role: "ADMIN" };
-  }
-  return users;
+interface Seat {
+  id: string;
+  human: { name: string; username: string; role: string; reports_to: string | null; manages: string[] };
+  agent: { name: string; handle: string; model: string };
 }
 
-async function getGistPasswords(): Promise<Record<string, string>> {
-  const gistId = process.env.WORKSPACE_GIST_ID;
-  const token = process.env.GITHUB_TOKEN;
-  if (!gistId) return {};
-  try {
-    const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
-      headers: token ? { Authorization: `token ${token}` } : {},
-      cache: "no-store",
-    });
-    if (!resp.ok) return {};
-    const gist = await resp.json();
-    return JSON.parse(gist.files?.["user_passwords.json"]?.content || "{}");
-  } catch {
-    return {};
-  }
+async function fetchGistData(gistId: string, token: string) {
+  const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
+    headers: token ? { Authorization: `token ${token}` } : {},
+    cache: "no-store",
+  });
+  if (!resp.ok) return null;
+  return await resp.json();
+}
+
+// Env-var fallback for Ron + Taylor (available even if Gist is down)
+function getEnvUsers(): Record<string, { password: string; role: string }> {
+  const users: Record<string, { password: string; role: string }> = {};
+  if (process.env.DASHBOARD_USERNAME && process.env.DASHBOARD_PASSWORD)
+    users[process.env.DASHBOARD_USERNAME] = { password: process.env.DASHBOARD_PASSWORD, role: "SUPER_ADMIN" };
+  if (process.env.TAYLOR_DASHBOARD_USERNAME && process.env.TAYLOR_DASHBOARD_PASSWORD)
+    users[process.env.TAYLOR_DASHBOARD_USERNAME] = { password: process.env.TAYLOR_DASHBOARD_PASSWORD, role: "ADMIN" };
+  return users;
 }
 
 async function login(formData: FormData) {
   "use server";
   const username = (formData.get("username") as string || "").trim();
   const password = formData.get("password") as string;
+
+  const gistId = process.env.WORKSPACE_GIST_ID || "";
+  const token  = process.env.GITHUB_TOKEN || "";
   const envUsers = getEnvUsers();
-  const gistPasswords = await getGistPasswords();
 
-  // Gist password overrides env var if present
-  const user = envUsers[username];
-  const expectedPassword = gistPasswords[username] ?? user?.password;
+  let seats: Seat[] = [];
+  let gistPasswords: Record<string, string> = {};
 
-  if (user && expectedPassword === password) {
-    const jar = await cookies();
-    const opts = { maxAge: 86400 * 30, path: "/" } as const;
-    jar.set("auth",     password,   { ...opts, httpOnly: true  });
-    jar.set("ace_user", username,   { ...opts, httpOnly: false });
-    jar.set("ace_role", user.role,  { ...opts, httpOnly: false });
-    redirect("/");
-  } else {
-    redirect("/login?error=1");
+  if (gistId) {
+    try {
+      const gist = await fetchGistData(gistId, token);
+      if (gist) {
+        seats = JSON.parse(gist.files?.["seats.json"]?.content || "[]");
+        gistPasswords = JSON.parse(gist.files?.["user_passwords.json"]?.content || "{}");
+      }
+    } catch { /* fall through to env vars */ }
   }
+
+  // Resolve role: seats.json first (all 6 users), env vars as fallback
+  const seat = seats.find((s) => s.human.username === username);
+  const role = seat?.human.role || envUsers[username]?.role;
+  if (!role) { redirect("/login?error=1"); return; }
+
+  // Validate password: gist overrides env var
+  const envPw = envUsers[username]?.password;
+  const expectedPassword = gistPasswords[username] ?? envPw;
+  if (!expectedPassword || expectedPassword !== password) { redirect("/login?error=1"); return; }
+
+  const jar = await cookies();
+  const opts = { maxAge: 86400 * 30, path: "/" } as const;
+  jar.set("auth",     password,        { ...opts, httpOnly: true  });
+  jar.set("ace_user", username,        { ...opts, httpOnly: false });
+  jar.set("ace_role", role,            { ...opts, httpOnly: false });
+  jar.set("ace_seat", seat?.id || "", { ...opts, httpOnly: false });
+  redirect("/");
 }
 
 export default async function LoginPage({
