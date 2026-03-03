@@ -808,6 +808,148 @@ function ContactsPanel({ pipelineTab }: { pipelineTab: string }) {
   );
 }
 
+// ── Opportunity Management (1.6) ──────────────────────────────────────────────
+
+interface OpportunityRecord {
+  id: string;
+  name: string;
+  status: string;
+  monetaryValue: number;
+  currency: string;
+  stageName: string;
+  assignedTo: string;
+  assignedName: string;
+  contactId: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  createdAt: string;
+  updatedAt: string;
+  lastActivityType: string;
+}
+
+function OpportunityDetail({ opp }: { opp: OpportunityRecord }) {
+  const ghlUrl = opp.contactId
+    ? `https://app.gohighlevel.com/location/${GHL_LOCATION}/contacts/detail/${opp.contactId}`
+    : `https://app.gohighlevel.com/location/${GHL_LOCATION}/opportunities/list`;
+
+  const stageColor = opp.status === "won" ? GREEN : opp.status === "lost" ? RED : GOLD;
+  const fields = [
+    { label: "STAGE",        value: opp.stageName },
+    { label: "STATUS",       value: opp.status.toUpperCase() },
+    { label: "VALUE",        value: opp.monetaryValue > 0 ? `$${opp.monetaryValue.toLocaleString()}` : "—" },
+    { label: "ASSIGNED TO",  value: opp.assignedName },
+    { label: "CONTACT",      value: opp.contactName },
+    { label: "EMAIL",        value: opp.contactEmail },
+    { label: "PHONE",        value: opp.contactPhone },
+    { label: "CREATED",      value: opp.createdAt ? new Date(opp.createdAt).toLocaleDateString() : "—" },
+    { label: "LAST UPDATED", value: opp.updatedAt  ? new Date(opp.updatedAt).toLocaleDateString()  : "—" },
+    { label: "LAST ACTIVITY", value: opp.lastActivityType || "—" },
+  ].filter(f => f.value && f.value !== "—");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ background: DARK, borderRadius: 10, padding: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 10, color: stageColor, background: "rgba(255,255,255,0.05)", padding: "2px 8px", borderRadius: 4, fontFamily: "monospace", letterSpacing: 1 }}>{opp.stageName}</span>
+        </div>
+        <div style={{ fontSize: 17, color: TEXT, fontFamily: "monospace", fontWeight: 700, lineHeight: 1.3 }}>{opp.name}</div>
+        {opp.monetaryValue > 0 && <div style={{ fontSize: 22, color: GREEN, fontFamily: "monospace", fontWeight: 700, marginTop: 8 }}>${opp.monetaryValue.toLocaleString()}</div>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {fields.map(({ label, value }) => (
+          <div key={label} style={{ background: DARK, borderRadius: 8, padding: 12 }}>
+            <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 11, color: TEXT, fontFamily: "monospace", wordBreak: "break-all" }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      <a href={ghlUrl} target="_blank" rel="noreferrer" style={{ display: "block", background: GOLD, borderRadius: 8, padding: "11px 0", color: DARK, fontSize: 11, fontWeight: 700, letterSpacing: 2, fontFamily: "monospace", textAlign: "center", textDecoration: "none" }}>
+        VIEW IN GHL →
+      </a>
+    </div>
+  );
+}
+
+function OpportunitiesPanel({ pipelineTab }: { pipelineTab: string }) {
+  const [opps, setOpps] = useState<OpportunityRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("open");
+  const [selectedOpp, setSelectedOpp] = useState<OpportunityRecord | null>(null);
+
+  const load = useCallback(async (p: number, status: string) => {
+    setLoading(true);
+    try {
+      const resp = await fetch(`/api/opportunities?status=${status}&page=${p}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        setOpps(data.opportunities || []);
+        setTotal(data.total || 0);
+      }
+    } catch { /* silent */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (pipelineTab === "opportunities") load(page, statusFilter);
+  }, [pipelineTab, page, statusFilter, load]);
+
+  const totalPages = Math.ceil(total / 20);
+
+  return (
+    <>
+      <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>OPPORTUNITIES</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} style={{ background: DARK, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "4px 8px", color: MUTED, fontSize: 10, fontFamily: "monospace" }}>
+              <option value="open">Open</option>
+              <option value="won">Won</option>
+              <option value="lost">Lost</option>
+              <option value="abandoned">Abandoned</option>
+            </select>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{total} total</span>
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 120px 120px 100px 20px", padding: "8px 20px", borderBottom: `1px solid ${BORDER}` }}>
+          {["OPPORTUNITY", "CONTACT", "STAGE", "ASSIGNED", "VALUE", ""].map((h, i) => (
+            <span key={i} style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>{h}</span>
+          ))}
+        </div>
+        {loading ? (
+          <div style={{ padding: 20, color: MUTED, fontSize: 11, fontFamily: "monospace" }}>Loading opportunities...</div>
+        ) : opps.length === 0 ? (
+          <div style={{ padding: 24, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>No {statusFilter} opportunities found.</div>
+            <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", marginTop: 6 }}>Pipeline is building — this will populate as leads progress.</div>
+          </div>
+        ) : opps.map((o, i) => (
+          <div key={i} onClick={() => setSelectedOpp(o)} style={{ display: "grid", gridTemplateColumns: "1fr 160px 120px 120px 100px 20px", padding: "12px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "center", cursor: "pointer", transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)"} onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = "transparent"}>
+            <span style={{ fontSize: 12, color: TEXT, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.name}</span>
+            <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{o.contactName}</span>
+            <span style={{ fontSize: 10, color: GOLD, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.stageName}</span>
+            <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{o.assignedName}</span>
+            <span style={{ fontSize: 11, color: o.monetaryValue > 0 ? GREEN : MUTED, fontFamily: "monospace" }}>{o.monetaryValue > 0 ? `$${o.monetaryValue.toLocaleString()}` : "—"}</span>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>›</span>
+          </div>
+        ))}
+        {totalPages > 1 && (
+          <div style={{ padding: "12px 20px", display: "flex", gap: 8, alignItems: "center", borderTop: `1px solid ${BORDER}` }}>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "4px 10px", color: MUTED, fontSize: 10, cursor: page === 1 ? "default" : "pointer", fontFamily: "monospace" }}>← PREV</button>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>Page {page} of {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "4px 10px", color: MUTED, fontSize: 10, cursor: page === totalPages ? "default" : "pointer", fontFamily: "monospace" }}>NEXT →</button>
+          </div>
+        )}
+      </div>
+      <Modal open={!!selectedOpp} onClose={() => setSelectedOpp(null)} title="OPPORTUNITY DETAIL">
+        {selectedOpp && <OpportunityDetail opp={selectedOpp} />}
+      </Modal>
+    </>
+  );
+}
+
 // ── Agent Log Panel (1.2) ─────────────────────────────────────────────────────
 
 interface AgentLogData {
@@ -1396,13 +1538,8 @@ export default function Dashboard() {
               {/* CONTACTS tab (1.5) */}
               {pipelineTab === "contacts" && <ContactsPanel pipelineTab={pipelineTab} />}
 
-              {/* OPPORTUNITIES tab — populated in deploy 30 */}
-              {pipelineTab === "opportunities" && (
-                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 40, textAlign: "center" }}>
-                  <div style={{ fontSize: 11, color: MUTED, fontFamily: "monospace", letterSpacing: 2 }}>OPPORTUNITIES TAB</div>
-                  <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", marginTop: 8 }}>Open pipeline opportunities — coming next deploy</div>
-                </div>
-              )}
+              {/* OPPORTUNITIES tab (1.6) */}
+              {pipelineTab === "opportunities" && <OpportunitiesPanel pipelineTab={pipelineTab} />}
             </div>
           )}
 
