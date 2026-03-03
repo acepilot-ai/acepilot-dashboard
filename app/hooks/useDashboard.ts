@@ -35,14 +35,17 @@ export interface StatsCache {
     today: number;
     by_outcome: { form: number; email: number; skip: number; error: number };
     today_by_outcome: { form: number; email: number; skip: number; error: number };
-    by_sender: Record<string, { total: number; today: number }>;
-    rolling_7d: Array<{ date: string; total: number; form: number; email: number }>;
+    by_sender: Record<string, { total: number; today: number; form: number; email: number; replies: number; interested: number }>;
+    by_trade:  Record<string, { total: number; form: number; email: number; replies: number; interested: number }>;
+    rolling_7d:  Array<{ date: string; total: number; form: number; email: number; replies: number }>;
+    rolling_30d: Array<{ date: string; total: number; form: number; email: number }>;
   };
   stephie: {
     total: number;
     today: number;
     by_outcome: { form: number; email: number; skip: number; error: number };
     today_by_outcome: { form: number; email: number; skip: number; error: number };
+    rolling_30d: Array<{ date: string; total: number }>;
   };
   replies: {
     total: number;

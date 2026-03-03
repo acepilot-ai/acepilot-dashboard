@@ -5,6 +5,10 @@ import {
   type StatsCache, type GHLData, type WorkspaceData, type Todo, type FileEntry, type ActivityItem,
 } from "./hooks/useDashboard";
 import { usePollingChannel, type ThreadMessage } from "./hooks/usePilotChannel";
+import {
+  ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+} from "recharts";
 
 const GOLD = "#C9A84C";
 const DARK = "#080810";
@@ -16,7 +20,7 @@ const GREEN = "#2ECC71";
 const RED = "#E74C3C";
 const BLUE = "#3498DB";
 
-type NavItem = "mission" | "pipeline" | "outreach" | "agents" | "workspace" | "settings";
+type NavItem = "mission" | "pipeline" | "analytics" | "outreach" | "agents" | "workspace" | "settings";
 
 interface Notification {
   id: string;
@@ -950,6 +954,92 @@ function OpportunitiesPanel({ pipelineTab }: { pipelineTab: string }) {
   );
 }
 
+// ── Analytics components (2.1 / 2.2 / 2.3) ───────────────────────────────────
+
+const CHART_TOOLTIP = {
+  contentStyle: { background: "#0D0D1A", border: "1px solid #1A1A2E", borderRadius: 6, fontSize: 10, fontFamily: "monospace" },
+  labelStyle: { color: "#555570" },
+  itemStyle: { color: "#E8E8F0" },
+};
+const CHART_TICK = { fontSize: 9, fill: "#555570", fontFamily: "monospace" };
+const CHART_LEGEND = { wrapperStyle: { fontSize: 10, fontFamily: "monospace", color: "#555570" } };
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: "#0D0D1A", border: "1px solid #1A1A2E", borderRadius: 12, padding: "20px 20px 12px" }}>
+      <div style={{ fontSize: 10, color: "#555570", fontFamily: "monospace", letterSpacing: 2, marginBottom: 16 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function SenderTable({ byS }: { byS: Record<string, { total: number; today: number; form: number; email: number; replies: number; interested: number }> }) {
+  type SortKey = "total" | "form" | "email" | "replyRate" | "intRate";
+  const [sortKey, setSortKey] = useState<SortKey>("total");
+  const [sortAsc, setSortAsc] = useState(false);
+
+  const rows = Object.entries(byS)
+    .filter(([, v]) => v.total > 0)
+    .map(([sender, v]) => ({
+      sender,
+      total:     v.total,
+      form:      v.form || 0,
+      email:     v.email || 0,
+      replies:   v.replies || 0,
+      interested:v.interested || 0,
+      replyRate: v.total > 0 ? (v.replies || 0) / v.total * 100 : 0,
+      intRate:   v.total > 0 ? (v.interested || 0) / v.total * 100 : 0,
+    }))
+    .sort((a, b) => {
+      const diff = a[sortKey] - b[sortKey];
+      return sortAsc ? diff : -diff;
+    });
+
+  const col = (label: string, key: SortKey, right = true) => (
+    <th
+      onClick={() => { if (sortKey === key) setSortAsc(p => !p); else { setSortKey(key); setSortAsc(false); } }}
+      style={{ padding: "8px 12px", fontSize: 9, color: sortKey === key ? "#C9A84C" : "#555570", fontFamily: "monospace", letterSpacing: 1, textAlign: right ? "right" : "left", cursor: "pointer", userSelect: "none", borderBottom: "1px solid #1A1A2E", whiteSpace: "nowrap" }}
+    >
+      {label}{sortKey === key ? (sortAsc ? " ▲" : " ▼") : ""}
+    </th>
+  );
+
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ padding: "8px 12px", fontSize: 9, color: "#555570", fontFamily: "monospace", letterSpacing: 1, textAlign: "left", borderBottom: "1px solid #1A1A2E" }}>SENDER</th>
+            {col("SENDS",    "total")}
+            {col("FORMS",    "form")}
+            {col("EMAILS",   "email")}
+            {col("REPLY %",  "replyRate")}
+            {col("INT %",    "intRate")}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#555570", fontSize: 10, fontFamily: "monospace" }}>No sender data yet</td></tr>
+          )}
+          {rows.map((r, i) => {
+            const shortSender = r.sender.includes("@") ? r.sender.split("@")[0] : r.sender;
+            return (
+              <tr key={r.sender} style={{ background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)" }}>
+                <td style={{ padding: "9px 12px", fontSize: 10, color: "#E8E8F0", fontFamily: "monospace" }}>{shortSender}</td>
+                <td style={{ padding: "9px 12px", fontSize: 10, color: "#E8E8F0", fontFamily: "monospace", textAlign: "right" }}>{r.total.toLocaleString()}</td>
+                <td style={{ padding: "9px 12px", fontSize: 10, color: "#3498DB", fontFamily: "monospace", textAlign: "right" }}>{r.form.toLocaleString()}</td>
+                <td style={{ padding: "9px 12px", fontSize: 10, color: "#3498DB", fontFamily: "monospace", textAlign: "right" }}>{r.email.toLocaleString()}</td>
+                <td style={{ padding: "9px 12px", fontSize: 10, color: r.replyRate > 0 ? "#2ECC71" : "#555570", fontFamily: "monospace", textAlign: "right" }}>{r.replyRate.toFixed(2)}%</td>
+                <td style={{ padding: "9px 12px", fontSize: 10, color: r.intRate > 0 ? "#C9A84C" : "#555570", fontFamily: "monospace", textAlign: "right" }}>{r.intRate.toFixed(2)}%</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Agent Log Panel (1.2) ─────────────────────────────────────────────────────
 
 interface AgentLogData {
@@ -1182,6 +1272,7 @@ export default function Dashboard() {
   const [selectedAgent, setSelectedAgent]       = useState<string | null>(null);
   const [drillDown, setDrillDown]               = useState<string | null>(null);
   const [pipelineTab, setPipelineTab]           = useState<"closers" | "contacts" | "opportunities">("closers");
+  const [analyticsTab, setAnalyticsTab]         = useState<"volume" | "trades" | "senders">("volume");
   const [selectedCloser, setSelectedCloser]     = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
@@ -1208,6 +1299,7 @@ export default function Dashboard() {
   const allNavItems: { id: NavItem; label: string; roles: string[] }[] = [
     { id: "mission",   label: "Mission Control", roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
     { id: "pipeline",  label: "Pipeline",        roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
+    { id: "analytics", label: "Analytics",       roles: ["SUPER_ADMIN", "ADMIN"] },
     { id: "outreach",  label: "Outreach",        roles: ["SUPER_ADMIN"] },
     { id: "agents",    label: "Agents",          roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
     { id: "workspace", label: "Workspace",       roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
@@ -1584,6 +1676,156 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          {/* ANALYTICS (2.1 / 2.2 / 2.3) */}
+          {nav === "analytics" && (() => {
+            const pdsD  = stats?.pds;
+            const stphD = stats?.stephie;
+            const repD  = stats?.replies;
+
+            // 30-day combined volume
+            const vol30 = (pdsD?.rolling_30d ?? []).map((d, i) => ({
+              date:    d.date.slice(5),
+              pds:     d.total,
+              stephie: stphD?.rolling_30d?.[i]?.total ?? 0,
+            }));
+
+            // 7-day reply rate trend
+            const replyTrend = (pdsD?.rolling_7d ?? []).map(d => ({
+              date:    d.date.slice(5),
+              sends:   d.total,
+              replies: d.replies ?? 0,
+              rate:    d.total > 0 ? +((d.replies ?? 0) / d.total * 100).toFixed(2) : 0,
+            }));
+
+            // Outcome funnel
+            const totalContacted = (pdsD?.total ?? 0) + (stphD?.total ?? 0);
+            const interested = repD?.by_classification?.INTERESTED
+              ?? repD?.by_classification?.interested ?? 0;
+            const funnelData = [
+              { stage: "Contacted",   value: totalContacted,            fill: GOLD },
+              { stage: "Replied",     value: repD?.total ?? 0,          fill: BLUE },
+              { stage: "Interested",  value: interested,                fill: GREEN },
+              { stage: "Opportunity", value: ghlData?.open_opportunities ?? 0, fill: "#9B59B6" },
+            ];
+
+            // Trade data (sorted by total desc, top 20)
+            const tradeData = Object.entries(pdsD?.by_trade ?? {})
+              .filter(([t]) => t && t !== "Other" && t !== "unknown")
+              .map(([trade, v]) => ({
+                trade: trade.length > 18 ? trade.slice(0, 16) + "…" : trade,
+                sends:   v.total,
+                forms:   v.form,
+                emails:  v.email,
+                replies: v.replies ?? 0,
+                replyPct: v.total > 0 ? +((v.replies ?? 0) / v.total * 100).toFixed(1) : 0,
+              }))
+              .sort((a, b) => b.sends - a.sends)
+              .slice(0, 20);
+
+            const TAB_BTN = (id: "volume" | "trades" | "senders", label: string) => (
+              <button key={id} onClick={() => setAnalyticsTab(id)} style={{ padding: "6px 18px", background: analyticsTab === id ? GOLD : "transparent", color: analyticsTab === id ? DARK : MUTED, border: `1px solid ${analyticsTab === id ? GOLD : BORDER}`, borderRadius: 6, fontSize: 10, fontFamily: "monospace", letterSpacing: 1, cursor: "pointer", fontWeight: analyticsTab === id ? 700 : 400 }}>
+                {label}
+              </button>
+            );
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {/* Tab bar */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  {TAB_BTN("volume",  "VOLUME")}
+                  {TAB_BTN("trades",  "TRADES")}
+                  {TAB_BTN("senders", "SENDERS")}
+                </div>
+
+                {/* 2.1 — VOLUME */}
+                {analyticsTab === "volume" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <ChartCard title="30-DAY SEND VOLUME — PDS vs STEPHIE">
+                      <ResponsiveContainer width="100%" height={240}>
+                        <LineChart data={vol30} margin={{ top: 4, right: 16, bottom: 0, left: -10 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
+                          <XAxis dataKey="date" tick={CHART_TICK} interval={4} />
+                          <YAxis tick={CHART_TICK} />
+                          <Tooltip {...CHART_TOOLTIP} />
+                          <Legend {...CHART_LEGEND} />
+                          <Line type="monotone" dataKey="pds"     stroke={GOLD} strokeWidth={2} dot={false} name="PDS" />
+                          <Line type="monotone" dataKey="stephie" stroke={BLUE} strokeWidth={2} dot={false} name="Stephie" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </ChartCard>
+
+                    <ChartCard title="7-DAY REPLY RATE TREND">
+                      <ResponsiveContainer width="100%" height={180}>
+                        <LineChart data={replyTrend} margin={{ top: 4, right: 16, bottom: 0, left: -10 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
+                          <XAxis dataKey="date" tick={CHART_TICK} />
+                          <YAxis tick={CHART_TICK} unit="%" domain={[0, "auto"]} />
+                          <Tooltip {...CHART_TOOLTIP} formatter={(v: number | undefined) => [`${v ?? 0}%`, "Reply Rate"]} />
+                          <Line type="monotone" dataKey="rate" stroke={GREEN} strokeWidth={2} dot={{ r: 3, fill: GREEN }} name="Reply %" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </ChartCard>
+
+                    <ChartCard title="OUTCOME FUNNEL — TOTAL CAMPAIGN">
+                      <ResponsiveContainer width="100%" height={160}>
+                        <BarChart data={funnelData} layout="vertical" margin={{ top: 4, right: 40, bottom: 0, left: 60 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={BORDER} horizontal={false} />
+                          <XAxis type="number" tick={CHART_TICK} />
+                          <YAxis type="category" dataKey="stage" tick={{ ...CHART_TICK, fontSize: 9 }} width={70} />
+                          <Tooltip {...CHART_TOOLTIP} />
+                          <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                            {funnelData.map((entry, i) => (
+                              <Cell key={i} fill={entry.fill} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                      <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 8 }}>
+                        {funnelData.map(f => (
+                          <div key={f.stage} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: 2, background: f.fill, display: "inline-block" }} />
+                            <span style={{ fontSize: 9, color: MUTED, fontFamily: "monospace" }}>{f.stage}: {f.value.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </ChartCard>
+                  </div>
+                )}
+
+                {/* 2.2 — TRADES */}
+                {analyticsTab === "trades" && (
+                  <ChartCard title="SENDS + REPLY RATE BY TRADE (TOP 20, SORTED BY VOLUME)">
+                    {tradeData.length === 0
+                      ? <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 11, fontFamily: "monospace" }}>No trade data yet — check JSONL trade field</div>
+                      : <ResponsiveContainer width="100%" height={Math.max(320, tradeData.length * 28)}>
+                          <BarChart data={tradeData} layout="vertical" margin={{ top: 4, right: 60, bottom: 4, left: 130 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={BORDER} horizontal={false} />
+                            <XAxis type="number" tick={CHART_TICK} />
+                            <YAxis type="category" dataKey="trade" tick={{ ...CHART_TICK, fontSize: 9 }} width={120} />
+                            <Tooltip {...CHART_TOOLTIP} />
+                            <Legend {...CHART_LEGEND} />
+                            <Bar dataKey="forms"  stackId="a" fill={BLUE}  name="Forms"  radius={[0, 0, 0, 0]} />
+                            <Bar dataKey="emails" stackId="a" fill="#1A6FA0" name="Emails" radius={[0, 0, 0, 0]} />
+                            <Bar dataKey="replies" fill={GREEN} name="Replies" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                    }
+                  </ChartCard>
+                )}
+
+                {/* 2.3 — SENDERS */}
+                {analyticsTab === "senders" && (
+                  <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+                    <div style={{ padding: "14px 20px", borderBottom: `1px solid ${BORDER}` }}>
+                      <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", letterSpacing: 2 }}>SENDER PERFORMANCE — CLICK COLUMN TO SORT</span>
+                    </div>
+                    <SenderTable byS={pdsD?.by_sender ?? {}} />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* AGENTS — CLOSER */}
           {nav === "agents" && role === "CLOSER" && (
