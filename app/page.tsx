@@ -503,7 +503,7 @@ function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => 
     : "";
 
   const ghlUrl = item.ghl_contact
-    ? `https://app.gohighlevel.com/location/${GHL_LOCATION}/contacts/detail/${item.ghl_contact}`
+    ? `https://app.precisiondatastrategies.com/location/${GHL_LOCATION}/contacts/detail/${item.ghl_contact}`
     : null;
 
   const handleSuppress = async () => {
@@ -614,7 +614,7 @@ function CloserDetail({ closer, activity }: {
     .slice(0, 10);
 
   const ghlUrl = closer.id
-    ? `https://app.gohighlevel.com/location/${GHL_LOCATION}/contacts/?userId=${closer.id}`
+    ? `https://app.precisiondatastrategies.com/location/${GHL_LOCATION}/contacts/?userId=${closer.id}`
     : null;
 
   return (
@@ -684,7 +684,7 @@ interface ContactRecord {
 }
 
 function ContactDetail({ contact }: { contact: ContactRecord }) {
-  const ghlUrl = `https://app.gohighlevel.com/location/${GHL_LOCATION}/contacts/detail/${contact.id}`;
+  const ghlUrl = `https://app.precisiondatastrategies.com/location/${GHL_LOCATION}/contacts/detail/${contact.id}`;
   const fields = [
     { label: "PHONE",       value: contact.phone },
     { label: "EMAIL",       value: contact.email },
@@ -834,8 +834,8 @@ interface OpportunityRecord {
 
 function OpportunityDetail({ opp }: { opp: OpportunityRecord }) {
   const ghlUrl = opp.contactId
-    ? `https://app.gohighlevel.com/location/${GHL_LOCATION}/contacts/detail/${opp.contactId}`
-    : `https://app.gohighlevel.com/location/${GHL_LOCATION}/opportunities/list`;
+    ? `https://app.precisiondatastrategies.com/location/${GHL_LOCATION}/contacts/detail/${opp.contactId}`
+    : `https://app.precisiondatastrategies.com/location/${GHL_LOCATION}/opportunities/list`;
 
   const stageColor = opp.status === "won" ? GREEN : opp.status === "lost" ? RED : GOLD;
   const fields = [
