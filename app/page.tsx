@@ -1391,7 +1391,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: DARK, color: TEXT, fontFamily: "monospace" }}>
+    <div style={{ display: "flex", height: "100vh", background: DARK, color: TEXT, fontFamily: "monospace", overflow: "hidden" }}>
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
@@ -1433,7 +1433,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100%", overflowY: "auto" }}>
         {/* Top bar */}
         <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: PANEL, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

@@ -15,12 +15,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AcePilot — Command Center",
   description: "AcePilot.ai outreach automation platform",
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/ace-logo.png", type: "image/png", sizes: "853x853" },
-    ],
-  },
 };
 
 export default function RootLayout({
