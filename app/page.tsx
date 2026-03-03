@@ -523,6 +523,9 @@ function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => 
     { label: "TIME",      value: item.ts },
   ];
 
+  // Determine if this item has enriched detail (local mode) or just msg (Gist mode)
+  const hasDetail = !!(item.business_name || item.from_email || item.address || item.website);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Business */}
@@ -530,8 +533,16 @@ function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <span style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: 1, color: item.type === "SEND" ? BLUE : item.type === "REPLY" ? GREEN : RED, background: "rgba(255,255,255,0.05)", padding: "2px 8px", borderRadius: 4 }}>{item.type}</span>
         </div>
-        <div style={{ fontSize: 17, color: TEXT, fontFamily: "monospace", fontWeight: 700, lineHeight: 1.3 }}>{item.business_name || item.from_email || "Unknown"}</div>
+        <div style={{ fontSize: 15, color: TEXT, fontFamily: "monospace", fontWeight: 700, lineHeight: 1.4 }}>{item.business_name || item.from_email || item.msg}</div>
       </div>
+      {!hasDetail && (
+        <div style={{ background: DARK, borderRadius: 8, padding: 12, border: `1px solid ${BORDER}` }}>
+          <div style={{ fontSize: 10, color: GOLD, fontFamily: "monospace", letterSpacing: 1, marginBottom: 4 }}>GIST MODE — LIMITED DETAIL</div>
+          <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", lineHeight: 1.6 }}>
+            Full contact detail (name, address, website, GHL link) is available when the dashboard runs with local JSONL access. The Gist cache only stores summary data. Run push-stats-cache.py with enriched fields to unlock.
+          </div>
+        </div>
+      )}
 
       {/* Detail grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -963,7 +974,7 @@ export default function Dashboard() {
             <span style={{ fontSize: 11, color: GREEN }}>ALL SYSTEMS GO</span>
           </div>
           <div style={{ fontSize: 10, color: MUTED, marginTop: 8, fontFamily: "monospace" }}>
-            {time.toLocaleTimeString("en-US", { hour12: false, timeZone: "America/Los_Angeles" })} PST
+            {time?.toLocaleTimeString("en-US", { hour12: false, timeZone: "America/Los_Angeles" }) ?? "--:--:--"} PST
           </div>
           <div style={{ fontSize: 9, color: role === "SUPER_ADMIN" ? GOLD : role === "ADMIN" ? BLUE : MUTED, letterSpacing: 1, marginTop: 6 }}>
             {role === "SUPER_ADMIN" ? "OWNER" : role === "ADMIN" ? "ADMIN" : seatInfo.agentName.toUpperCase()}
@@ -1306,7 +1317,7 @@ export default function Dashboard() {
 
         <div style={{ padding: "12px 32px", borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 44 }}>
           <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>ACEPILOT.AI — MISSION CONTROL v0.2</span>
-          <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{time.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour12: false })} PST</span>
+          <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{time?.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour12: false }) ?? "--"} PST</span>
         </div>
       </div>
 
