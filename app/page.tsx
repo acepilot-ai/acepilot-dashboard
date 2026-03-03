@@ -1391,36 +1391,21 @@ export default function Dashboard() {
   ];
 
   return (
-    <div style={{ display: "flex", height: "100dvh", background: DARK, color: TEXT, fontFamily: "monospace", overflow: "hidden" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: DARK, color: TEXT, fontFamily: "monospace" }}>
       <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: ${DARK}; }
-        ::-webkit-scrollbar-thumb { background: ${BORDER}; border-radius: 2px; }
-        body { background: ${DARK}; overflow: hidden; }
+        body { background: ${DARK}; }
         textarea { box-sizing: border-box; }
         select { outline: none; }
-        .ace-sidebar { width: 220px; flex-shrink: 0; }
-        .ace-hamburger { display: none; }
-        @media (max-width: 767px) {
-          .ace-sidebar {
-            position: fixed !important; top: 0; left: 0; height: 100dvh;
-            z-index: 500; transform: translateX(-100%); transition: transform 0.22s ease;
-          }
-          .ace-sidebar.open { transform: translateX(0); }
-          .ace-hamburger { display: flex !important; }
-          .ace-overlay { display: block !important; }
-        }
       `}</style>
 
       {/* Mobile overlay */}
       <div onClick={() => setMobileMenuOpen(false)} className="ace-overlay" style={{ display: "none", position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 499 }} />
 
       {/* Sidebar */}
-      <div className={`ace-sidebar${mobileMenuOpen ? " open" : ""}`} style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", padding: "24px 0", height: "100dvh", overflowY: "auto" }}>
+      <div className={`ace-sidebar${mobileMenuOpen ? " open" : ""}`} style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", padding: "24px 0" }}>
         <div style={{ padding: "0 24px 28px", borderBottom: `1px solid ${BORDER}` }}>
           <img src="/ace-logo.png" alt="AcePilot" style={{ width: 48, height: 48 }} />
           <div style={{ fontSize: 10, color: MUTED, letterSpacing: 3, marginTop: 6 }}>ACEPILOT.AI</div>
@@ -1448,7 +1433,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowY: "auto" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {/* Top bar */}
         <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: PANEL, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
