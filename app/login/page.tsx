@@ -1,31 +1,46 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-function getUsers(): Record<string, { password: string; role: string }> {
+function getEnvUsers(): Record<string, { password: string; role: string }> {
   const users: Record<string, { password: string; role: string }> = {};
   if (process.env.DASHBOARD_USERNAME && process.env.DASHBOARD_PASSWORD) {
-    users[process.env.DASHBOARD_USERNAME] = {
-      password: process.env.DASHBOARD_PASSWORD,
-      role: "SUPER_ADMIN",
-    };
+    users[process.env.DASHBOARD_USERNAME] = { password: process.env.DASHBOARD_PASSWORD, role: "SUPER_ADMIN" };
   }
   if (process.env.TAYLOR_DASHBOARD_USERNAME && process.env.TAYLOR_DASHBOARD_PASSWORD) {
-    users[process.env.TAYLOR_DASHBOARD_USERNAME] = {
-      password: process.env.TAYLOR_DASHBOARD_PASSWORD,
-      role: "ADMIN",
-    };
+    users[process.env.TAYLOR_DASHBOARD_USERNAME] = { password: process.env.TAYLOR_DASHBOARD_PASSWORD, role: "ADMIN" };
   }
   return users;
+}
+
+async function getGistPasswords(): Promise<Record<string, string>> {
+  const gistId = process.env.WORKSPACE_GIST_ID;
+  const token = process.env.GITHUB_TOKEN;
+  if (!gistId) return {};
+  try {
+    const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: token ? { Authorization: `token ${token}` } : {},
+      cache: "no-store",
+    });
+    if (!resp.ok) return {};
+    const gist = await resp.json();
+    return JSON.parse(gist.files?.["user_passwords.json"]?.content || "{}");
+  } catch {
+    return {};
+  }
 }
 
 async function login(formData: FormData) {
   "use server";
   const username = (formData.get("username") as string || "").trim();
   const password = formData.get("password") as string;
-  const users = getUsers();
-  const user = users[username];
+  const envUsers = getEnvUsers();
+  const gistPasswords = await getGistPasswords();
 
-  if (user && user.password === password) {
+  // Gist password overrides env var if present
+  const user = envUsers[username];
+  const expectedPassword = gistPasswords[username] ?? user?.password;
+
+  if (user && expectedPassword === password) {
     const jar = await cookies();
     const opts = { maxAge: 86400 * 30, path: "/" } as const;
     jar.set("auth",     password,   { ...opts, httpOnly: true  });

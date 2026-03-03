@@ -5,58 +5,39 @@ import { redirect } from "next/navigation";
 // ── User store (prototype: env vars + Vercel API) ───────────────────────────
 // Production: swap this layer for a real database. UX is identical.
 
-function getUsers(): Record<string, { password: string; role: string; envKey: string }> {
-  const users: Record<string, { password: string; role: string; envKey: string }> = {};
+function getUsers(): Record<string, { password: string; role: string }> {
+  const users: Record<string, { password: string; role: string }> = {};
   if (process.env.DASHBOARD_USERNAME && process.env.DASHBOARD_PASSWORD) {
-    users[process.env.DASHBOARD_USERNAME] = {
-      password: process.env.DASHBOARD_PASSWORD,
-      role: "SUPER_ADMIN",
-      envKey: "DASHBOARD_PASSWORD",
-    };
+    users[process.env.DASHBOARD_USERNAME] = { password: process.env.DASHBOARD_PASSWORD, role: "SUPER_ADMIN" };
   }
   if (process.env.TAYLOR_DASHBOARD_USERNAME && process.env.TAYLOR_DASHBOARD_PASSWORD) {
-    users[process.env.TAYLOR_DASHBOARD_USERNAME] = {
-      password: process.env.TAYLOR_DASHBOARD_PASSWORD,
-      role: "ADMIN",
-      envKey: "TAYLOR_DASHBOARD_PASSWORD",
-    };
+    users[process.env.TAYLOR_DASHBOARD_USERNAME] = { password: process.env.TAYLOR_DASHBOARD_PASSWORD, role: "ADMIN" };
   }
   return users;
 }
 
-async function persistPassword(envKey: string, newPassword: string): Promise<void> {
-  const vercelToken = process.env.VERCEL_TOKEN;
-  const project = "acepilot-dashboard";
-  if (!vercelToken) return;
+async function persistPassword(username: string, newPassword: string): Promise<void> {
+  const gistId = process.env.WORKSPACE_GIST_ID;
+  const token = process.env.GITHUB_TOKEN;
+  if (!gistId || !token) return;
 
-  // Find existing env var ID
-  const listRes = await fetch(`https://api.vercel.com/v10/projects/${project}/env`, {
-    headers: { Authorization: `Bearer ${vercelToken}` },
-  });
-  if (!listRes.ok) return;
-  const listData = await listRes.json();
-  const existing = (listData.envs || []).find((e: { key: string }) => e.key === envKey);
+  try {
+    const getResp = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json" },
+    });
+    if (!getResp.ok) return;
+    const gist = await getResp.json();
+    const current: Record<string, string> = JSON.parse(
+      gist.files?.["user_passwords.json"]?.content || "{}"
+    );
+    current[username] = newPassword;
 
-  if (existing?.id) {
-    // Patch existing
-    await fetch(`https://api.vercel.com/v10/projects/${project}/env/${existing.id}`, {
+    await fetch(`https://api.github.com/gists/${gistId}`, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${vercelToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ value: newPassword }),
+      headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ files: { "user_passwords.json": { content: JSON.stringify(current) } } }),
     });
-  } else {
-    // Create new
-    await fetch(`https://api.vercel.com/v10/projects/${project}/env`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${vercelToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        key: envKey,
-        value: newPassword,
-        type: "encrypted",
-        target: ["production", "preview", "development"],
-      }),
-    });
-  }
+  } catch { /* best-effort */ }
 }
 
 // ── Server action ───────────────────────────────────────────────────────────
@@ -86,8 +67,8 @@ async function changePassword(formData: FormData) {
   const opts = { maxAge: 86400 * 30, path: "/" } as const;
   jar.set("auth", next, { ...opts, httpOnly: true });
 
-  // Persist to Vercel env in background (best-effort for prototype)
-  await persistPassword(user.envKey, next);
+  // Persist to workspace gist — picked up immediately by login + middleware
+  await persistPassword(username, next);
 
   redirect("/account?success=1");
 }
