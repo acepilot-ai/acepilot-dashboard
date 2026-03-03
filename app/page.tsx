@@ -500,7 +500,7 @@ function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => 
 
   const ghlUrl = item.ghl_contact
     ? `https://app.gohighlevel.com/location/${GHL_LOCATION}/contacts/detail/${item.ghl_contact}`
-    : item.website || null;
+    : null;
 
   const handleSuppress = async () => {
     if (!domain || suppressing) return;
