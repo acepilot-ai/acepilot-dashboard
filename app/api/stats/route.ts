@@ -25,6 +25,18 @@ const SCHEDULES: Record<string, number> = {
   "taylor-email-cleanup.py": 720,
 };
 
+// Map each script to its cron log file — log mtime is the true "last ran" signal.
+// Scripts don't modify themselves on each run, so script mtime is useless for status.
+const LOG_PATHS: Record<string, string> = {
+  "reply-monitor.py":      "second-brain/02-projects/pds-outreach/reply-monitor.log",
+  "outreach.py":           "second-brain/02-projects/pds-outreach/cron.log",
+  "morning-report.py":     "second-brain/02-projects/pds-outreach/cron.log",
+  "stephie-outreach.py":   "second-brain/02-projects/stephie-outreach/cron.log",
+  "pipeline-monitor.py":   "second-brain/02-projects/pds-outreach/pipeline-monitor.log",
+  "taylor-email-cleanup.py": "second-brain/02-projects/pds-outreach/email-cleanup.log",
+  "nightly-review.py":     "second-brain/_qmd/nightly-review.log",
+};
+
 function deriveAgentStatus(name: string, lastModified: string): "running" | "idle" | "error" {
   const interval = SCHEDULES[name];
   if (!interval || !lastModified) return "idle";
@@ -109,6 +121,7 @@ async function buildFromLocal() {
     total: 0, today: 0,
     by_outcome: { form: 0, email: 0, skip: 0, error: 0 },
     today_by_outcome: { form: 0, email: 0, skip: 0, error: 0 },
+    by_sender: {} as Record<string, { total: number; today: number }>,
   };
 
   for (const row of stephieRows as Record<string, string>[]) {
@@ -121,6 +134,10 @@ async function buildFromLocal() {
       stephie.today++;
       stephie.today_by_outcome[cls]++;
     }
+    const sender = row.from_address || row.sender || "unknown";
+    if (!stephie.by_sender[sender]) stephie.by_sender[sender] = { total: 0, today: 0 };
+    stephie.by_sender[sender].total++;
+    if (rowDate === TODAY) stephie.by_sender[sender].today++;
   }
 
   // Replies
@@ -166,27 +183,29 @@ async function buildFromLocal() {
   activityItems.sort((a, b) => b._sort - a._sort);
   const activity = activityItems.slice(0, 50).map(({ _sort: _, ...rest }) => rest);
 
-  // Agent statuses — derive from script file modification times
-  const scriptDir = path.join(process.env.HOME || "/home/vivaciousvl", "second-brain/_scripts");
+  // Agent statuses — derive from log file modification times (log mtime = last run time)
+  const homeDir = process.env.HOME || "/home/vivaciousvl";
   const agentsRaw: Record<string, { last_modified: string; today_count: number }> = {};
 
   for (const script of Object.keys(SCHEDULES)) {
-    const scriptPath = path.join(scriptDir, script);
+    const logPath = LOG_PATHS[script] ? path.join(homeDir, LOG_PATHS[script]) : "";
     let lastMod = "";
-    try {
-      const stat = fs.statSync(scriptPath);
-      lastMod = stat.mtime.toISOString();
-    } catch { /* file not found */ }
+    if (logPath) {
+      try {
+        const stat = fs.statSync(logPath);
+        lastMod = stat.mtime.toISOString();
+      } catch { /* log not found yet */ }
+    }
     agentsRaw[script] = { last_modified: lastMod, today_count: 0 };
   }
 
-  // Enrich today_count from submissions
+  // Enrich today_count from submissions (field is ts, not timestamp)
   const outreachToday = (submissions as Record<string, string>[])
-    .filter(r => r.timestamp?.slice(0, 10) === TODAY).length;
+    .filter(r => (r.ts || r.timestamp)?.slice(0, 10) === TODAY).length;
   if (agentsRaw["outreach.py"]) agentsRaw["outreach.py"].today_count = outreachToday;
 
   const stephieToday = (stephieRows as Record<string, string>[])
-    .filter(r => r.timestamp?.slice(0, 10) === TODAY).length;
+    .filter(r => (r.ts || r.timestamp)?.slice(0, 10) === TODAY).length;
   if (agentsRaw["stephie-outreach.py"]) agentsRaw["stephie-outreach.py"].today_count = stephieToday;
 
   return {

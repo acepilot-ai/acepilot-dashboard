@@ -6,6 +6,25 @@ const GIST_API = `https://api.github.com/gists/${GIST_ID}`;
 const THREAD_FILE = "agent_thread.json";
 const MAX_MESSAGES = 200;
 
+// ── Telegram alert ─────────────────────────────────────────────────────────────
+async function sendTelegramAlert(from: string, content: string): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return; // not configured in this environment
+
+  const fromLabel = from.charAt(0).toUpperCase() + from.slice(1);
+  const preview = content.length > 200 ? content.slice(0, 200) + "..." : content;
+  const text = `🔔 PILOT CHANNEL\n${fromLabel}: "${preview}"`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+  } catch { /* best-effort, never block the response */ }
+}
+
 export interface ThreadMessage {
   id: string;
   from: "ace" | "trinity";
@@ -74,6 +93,10 @@ export async function POST(req: NextRequest) {
     // Keep to MAX_MESSAGES
     const trimmed = thread.slice(-MAX_MESSAGES);
     await writeThread(trimmed);
+
+    // Fire Telegram alert (non-blocking)
+    sendTelegramAlert(from, content);
+
     return NextResponse.json({ ok: true, message: msg });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
