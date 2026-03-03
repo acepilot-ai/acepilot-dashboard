@@ -4,6 +4,7 @@ import {
   useStats, useGHL, useWorkspace, useClock, relativeTime,
   type StatsCache, type GHLData, type WorkspaceData, type Todo, type FileEntry,
 } from "./hooks/useDashboard";
+import { usePollingChannel, type ThreadMessage } from "./hooks/usePilotChannel";
 
 const GOLD = "#C9A84C";
 const DARK = "#080810";
@@ -64,10 +65,99 @@ function CloserRow({ name, territory, leads, sends, cold }: {
   );
 }
 
+// ── Pilot Channel ─────────────────────────────────────────────────────────────
+
+function PilotChannel({ role, channel }: { role: string; channel: ReturnType<typeof usePollingChannel> }) {
+  const { messages, loading, relay } = channel;
+  const from = role === "SUPER_ADMIN" ? "ace" : "trinity";
+  const fromLabel = from === "ace" ? "Ace" : "Trinity";
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const send = async () => {
+    if (!draft.trim() || sending) return;
+    setSending(true);
+    const sentBy = role === "SUPER_ADMIN" ? "Ron" : "Taylor";
+    await relay(from, draft.trim(), sentBy);
+    setDraft("");
+    setSending(false);
+  };
+
+  return (
+    <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />
+          <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ACE ↔ TRINITY — PILOT CHANNEL</span>
+        </div>
+        <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{messages.length} messages</span>
+      </div>
+
+      {/* Message thread */}
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", maxHeight: 400, padding: "12px 0", display: "flex", flexDirection: "column", gap: 0 }}>
+        {loading && <div style={{ padding: "20px", color: MUTED, fontSize: 11, fontFamily: "monospace", textAlign: "center" }}>Loading channel...</div>}
+        {!loading && messages.length === 0 && (
+          <div style={{ padding: "24px 20px", color: MUTED, fontSize: 11, fontFamily: "monospace", textAlign: "center" }}>
+            No messages yet. Ace and Trinity will communicate here.<br />
+            <span style={{ fontSize: 10, opacity: 0.6 }}>Agents auto-relay when they address each other in chat.</span>
+          </div>
+        )}
+        {messages.map((msg) => {
+          const isAce = msg.from === "ace";
+          return (
+            <div key={msg.id} style={{ display: "flex", gap: 0, padding: "10px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "flex-start" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 100, paddingTop: 2 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: isAce ? GOLD : BLUE, flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: isAce ? GOLD : BLUE, fontFamily: "monospace", letterSpacing: 1, fontWeight: 700 }}>
+                  {isAce ? "ACE" : "TRINITY"}
+                </span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 12, color: TEXT, fontFamily: "monospace", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{msg.content}</span>
+                <div style={{ fontSize: 9, color: MUTED, marginTop: 4, fontFamily: "monospace" }}>
+                  {msg.ts.slice(0, 16).replace("T", " ")} · via {msg.sent_by}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Compose */}
+      <div style={{ borderTop: `1px solid ${BORDER}`, padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-end" }}>
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder={`${fromLabel} → ${from === "ace" ? "Trinity" : "Ace"}...`}
+          rows={2}
+          disabled={sending}
+          style={{ flex: 1, background: DARK, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 12px", color: TEXT, fontSize: 12, fontFamily: "monospace", outline: "none", resize: "none", lineHeight: 1.5 }}
+        />
+        <button onClick={send} disabled={sending || !draft.trim()} style={{
+          background: sending || !draft.trim() ? "transparent" : GOLD, border: `1px solid ${sending || !draft.trim() ? BORDER : GOLD}`,
+          borderRadius: 6, padding: "8px 16px", color: sending || !draft.trim() ? MUTED : DARK,
+          fontSize: 11, fontWeight: 700, cursor: sending || !draft.trim() ? "default" : "pointer",
+          fontFamily: "monospace", letterSpacing: 1,
+        }}>RELAY</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Workspace section ─────────────────────────────────────────────────────────
 
-function WorkspaceSection({ role, chatMessages }: { role: string; chatMessages: { role: "user" | "assistant"; content: string }[] }) {
-  const [tab, setTab] = useState<"todos" | "notes" | "files" | "chat">("todos");
+function WorkspaceSection({ role, chatMessages, channel }: {
+  role: string;
+  chatMessages: { role: "user" | "assistant"; content: string }[];
+  channel: ReturnType<typeof usePollingChannel>;
+}) {
+  const [tab, setTab] = useState<"todos" | "notes" | "files" | "chat" | "pilot">("todos");
   const { data, loading, error, mutate } = useWorkspace();
 
   const ws: WorkspaceData = data || { todos: [], notes: "# Workspace Notes\n", files: [] };
@@ -129,6 +219,7 @@ function WorkspaceSection({ role, chatMessages }: { role: string; chatMessages: 
   const TABS: { id: typeof tab; label: string }[] = [
     { id: "todos", label: "TODOS" }, { id: "notes", label: "NOTES" },
     { id: "files", label: "FILES" }, { id: "chat", label: "CHAT EXPORT" },
+    { id: "pilot", label: "PILOT CHANNEL" },
   ];
 
   if (loading) return <div style={{ color: MUTED, fontFamily: "monospace", fontSize: 12, padding: 32 }}>Loading workspace...</div>;
@@ -228,22 +319,28 @@ function WorkspaceSection({ role, chatMessages }: { role: string; chatMessages: 
           </div>
         </div>
       )}
+
+      {/* PILOT CHANNEL */}
+      {tab === "pilot" && <PilotChannel role={role} channel={channel} />}
     </div>
   );
 }
 
 // ── Chat Panel ────────────────────────────────────────────────────────────────
 
-function ChatPanel({ role, messages, setMessages }: {
+function ChatPanel({ role, messages, setMessages, channel }: {
   role: string;
   messages: { role: "user" | "assistant"; content: string }[];
   setMessages: React.Dispatch<React.SetStateAction<{ role: "user" | "assistant"; content: string }[]>>;
+  channel: ReturnType<typeof usePollingChannel>;
 }) {
   const agent = role === "ADMIN" ? "trinity" : "ace";
   const agentLabel = role === "ADMIN" ? "Trinity" : "Ace";
+  const sentBy = role === "SUPER_ADMIN" ? "Ron" : "Taylor";
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [relaying, setRelaying] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -261,7 +358,7 @@ function ChatPanel({ role, messages, setMessages }: {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ agent, messages: next }),
+        body: JSON.stringify({ agent, messages: next, sent_by: sentBy }),
       });
       const data = await resp.json();
       setMessages(prev => [...prev, { role: "assistant", content: data.content || data.error || "Error" }]);
@@ -269,6 +366,13 @@ function ChatPanel({ role, messages, setMessages }: {
       setMessages(prev => [...prev, { role: "assistant", content: "Connection error." }]);
     }
     setLoading(false);
+  };
+
+  const relayMessage = async (idx: number, content: string) => {
+    setRelaying(idx);
+    const from = agent === "ace" ? "ace" : "trinity";
+    await channel.relay(from, content, sentBy);
+    setRelaying(null);
   };
 
   return (
@@ -282,8 +386,15 @@ function ChatPanel({ role, messages, setMessages }: {
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "14px 28px", display: "flex", flexDirection: "column", gap: 10 }}>
         {messages.length === 0 && <div style={{ color: MUTED, fontSize: 11, fontFamily: "monospace", textAlign: "center", paddingTop: 16 }}>{agentLabel} is standing by. Ask anything.</div>}
         {messages.map((m, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 4 }}>
             <div style={{ maxWidth: "72%", background: m.role === "user" ? "#14142A" : DARK, border: `1px solid ${m.role === "user" ? "#2A2A5E" : BORDER}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, color: m.role === "user" ? GOLD : TEXT, fontFamily: "monospace", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{m.content}</div>
+            {m.role === "assistant" && (
+              <button onClick={() => relayMessage(i, m.content)} disabled={relaying === i} style={{
+                background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "2px 10px",
+                color: relaying === i ? GOLD : MUTED, fontSize: 9, cursor: "pointer",
+                fontFamily: "monospace", letterSpacing: 1,
+              }}>{relaying === i ? "RELAYING..." : `RELAY → ${agent === "ace" ? "TRINITY" : "ACE"}`}</button>
+            )}
           </div>
         ))}
         {loading && <div style={{ display: "flex", justifyContent: "flex-start" }}><div style={{ background: DARK, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", fontSize: 12, color: MUTED, fontFamily: "monospace" }}>{agentLabel} is thinking...</div></div>}
@@ -350,6 +461,7 @@ export default function Dashboard() {
   const time = useClock();
   const { data: stats, loading: statsLoading, lastUpdated } = useStats();
   const { data: ghl } = useGHL();
+  const channel = usePollingChannel(15_000);
 
   useEffect(() => {
     setRole(getCookie("ace_role") || "SUPER_ADMIN");
@@ -596,7 +708,7 @@ export default function Dashboard() {
           )}
 
           {/* WORKSPACE */}
-          {nav === "workspace" && <WorkspaceSection role={role} chatMessages={chatMessages} />}
+          {nav === "workspace" && <WorkspaceSection role={role} chatMessages={chatMessages} channel={channel} />}
 
           {/* SETTINGS */}
           {nav === "settings" && (
@@ -646,7 +758,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <ChatPanel role={role} messages={chatMessages} setMessages={setChatMessages} />
+      <ChatPanel role={role} messages={chatMessages} setMessages={setChatMessages} channel={channel} />
     </div>
   );
 }
