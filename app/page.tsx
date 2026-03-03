@@ -18,6 +18,15 @@ const BLUE = "#3498DB";
 
 type NavItem = "mission" | "pipeline" | "outreach" | "agents" | "workspace" | "settings";
 
+interface Notification {
+  id: string;
+  type: "PILOT" | "INTERESTED" | "ERROR";
+  msg: string;
+  ts: string;
+  read: boolean;
+  navTarget: NavItem;
+}
+
 // Seat → human + agent info. Single source of truth for role-scoped views.
 const SEAT_MAP: Record<string, { name: string; senderName: string; ghlId: string; agentHandle: string; agentName: string; territory: string }> = {
   seat_ron:    { name: "Ron Parent",     senderName: "Ron Parent",     ghlId: "",                       agentHandle: "ace",     agentName: "Ace",     territory: "Mixed"                 },
@@ -426,6 +435,94 @@ function getCookie(name: string): string {
   return m ? m[2] : "";
 }
 
+// ── Notification Bell ─────────────────────────────────────────────────────────
+
+function NotificationBell({ notifications, unread, onMarkAllRead, onClear, onMarkRead, onNavigate }: {
+  notifications: Notification[];
+  unread: number;
+  onMarkAllRead: () => void;
+  onClear: () => void;
+  onMarkRead: (id: string) => void;
+  onNavigate: (target: NavItem) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const TYPE_ICON: Record<string, string> = { PILOT: "🔔", INTERESTED: "📨", ERROR: "🚨" };
+  const TYPE_COLOR: Record<string, string> = { PILOT: GOLD, INTERESTED: GREEN, ERROR: RED };
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          position: "relative", background: open ? "rgba(201,168,76,0.08)" : "none",
+          border: `1px solid ${open ? GOLD : BORDER}`, borderRadius: 8,
+          padding: "5px 10px", cursor: "pointer", display: "flex", alignItems: "center",
+        }}
+      >
+        <span style={{ fontSize: 14 }}>🔔</span>
+        {unread > 0 && (
+          <span style={{
+            position: "absolute", top: -5, right: -5,
+            background: RED, color: "#fff", fontSize: 9, fontWeight: 700,
+            borderRadius: "50%", minWidth: 16, height: 16,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "monospace", padding: "0 2px",
+          }}>{unread > 9 ? "9+" : unread}</span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 8px)", right: 0, width: 360,
+          background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10,
+          zIndex: 200, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+        }}>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>NOTIFICATIONS</span>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button onClick={onMarkAllRead} style={{ background: "none", border: "none", color: MUTED, fontSize: 9, cursor: "pointer", letterSpacing: 1, fontFamily: "monospace" }}>MARK READ</button>
+              <button onClick={onClear} style={{ background: "none", border: "none", color: MUTED, fontSize: 9, cursor: "pointer", letterSpacing: 1, fontFamily: "monospace" }}>CLEAR ALL</button>
+            </div>
+          </div>
+          <div style={{ maxHeight: 340, overflowY: "auto" }}>
+            {notifications.length === 0 && (
+              <div style={{ padding: 28, color: MUTED, fontSize: 11, fontFamily: "monospace", textAlign: "center" }}>No notifications.</div>
+            )}
+            {notifications.map(n => (
+              <div
+                key={n.id}
+                onClick={() => { onMarkRead(n.id); onNavigate(n.navTarget); setOpen(false); }}
+                style={{
+                  display: "flex", gap: 12, padding: "12px 16px", borderBottom: `1px solid ${BORDER}`,
+                  cursor: "pointer", background: n.read ? "transparent" : "rgba(201,168,76,0.04)",
+                  alignItems: "flex-start",
+                }}
+              >
+                <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{TYPE_ICON[n.type] || "🔔"}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: n.read ? MUTED : TEXT, fontFamily: "monospace", lineHeight: 1.5, wordBreak: "break-word" }}>{n.msg}</div>
+                  <div style={{ fontSize: 9, color: MUTED, marginTop: 3, fontFamily: "monospace" }}>{n.ts}</div>
+                </div>
+                {!n.read && <span style={{ width: 6, height: 6, borderRadius: "50%", background: TYPE_COLOR[n.type] || GOLD, flexShrink: 0, marginTop: 5 }} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Agent status builder ──────────────────────────────────────────────────────
 const SCHEDULES: Record<string, number> = {
   "reply-monitor.py": 30, "outreach.py": 1440, "stephie-outreach.py": 1440,
@@ -471,6 +568,15 @@ export default function Dashboard() {
   const [role, setRole] = useState<string>("SUPER_ADMIN");
   const [seatId, setSeatId] = useState<string>("");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
+    setNotifications(prev => [{
+      ...n,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      ts: new Date().toLocaleTimeString("en-US", { hour12: false, timeZone: "America/Los_Angeles" }) + " PST",
+      read: false,
+    }, ...prev].slice(0, 50));
+  }, []);
 
   const time = useClock();
   const { data: stats, loading: statsLoading, lastUpdated } = useStats();
@@ -505,6 +611,56 @@ export default function Dashboard() {
   const activity = stats?.activity ?? [];
   const agentRows = buildAgentRows(stats?.agents);
   const runningCount = agentRows.filter(a => a.status === "running").length;
+
+  // ── Notification watchers ─────────────────────────────────────────────────────
+  const interestedCount = replies?.by_classification?.["INTERESTED"] ?? 0;
+  const lastInterested = useRef<number>(-1);
+  useEffect(() => {
+    if (lastInterested.current === -1) { lastInterested.current = interestedCount; return; }
+    if (interestedCount > lastInterested.current) {
+      const delta = interestedCount - lastInterested.current;
+      addNotification({ type: "INTERESTED", msg: `${delta} new INTERESTED repl${delta === 1 ? "y" : "ies"} detected`, navTarget: "mission" });
+    }
+    lastInterested.current = interestedCount;
+  }, [interestedCount, addNotification]);
+
+  const seenPilotIds = useRef<Set<string>>(new Set());
+  const pilotReady = useRef(false);
+  useEffect(() => {
+    if (!channel.messages.length) return;
+    if (!pilotReady.current) {
+      channel.messages.forEach(m => seenPilotIds.current.add(m.id));
+      pilotReady.current = true;
+      return;
+    }
+    channel.messages.forEach(m => {
+      if (!seenPilotIds.current.has(m.id)) {
+        seenPilotIds.current.add(m.id);
+        const label = m.from === "ace" ? "Ace" : "Trinity";
+        const preview = m.content.length > 80 ? m.content.slice(0, 80) + "..." : m.content;
+        addNotification({ type: "PILOT", msg: `${label}: "${preview}"`, navTarget: "workspace" });
+      }
+    });
+  }, [channel.messages, addNotification]);
+
+  const seenErrors = useRef<Set<string>>(new Set());
+  const errorsReady = useRef(false);
+  useEffect(() => {
+    if (!agentRows.length) return;
+    const currentErrors = new Set(agentRows.filter(a => a.status === "error").map(a => a.name));
+    if (!errorsReady.current) {
+      currentErrors.forEach(n => seenErrors.current.add(n));
+      errorsReady.current = true;
+      return;
+    }
+    currentErrors.forEach(name => {
+      if (!seenErrors.current.has(name)) {
+        seenErrors.current.add(name);
+        addNotification({ type: "ERROR", msg: `Script error detected: ${name}`, navTarget: "agents" });
+      }
+    });
+    seenErrors.current.forEach(name => { if (!currentErrors.has(name)) seenErrors.current.delete(name); });
+  }, [agentRows, addNotification]);
 
   // GHL derived
   const ghlData: GHLData | null = ghl;
@@ -564,9 +720,19 @@ export default function Dashboard() {
             <div style={{ fontSize: 14, color: TEXT, letterSpacing: 2 }}>{navItems.find(n => n.id === nav)?.label.toUpperCase()}</div>
             <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: statsLoading ? GOLD : GREEN, boxShadow: `0 0 6px ${statsLoading ? GOLD : GREEN}` }} />
-            <span style={{ fontSize: 11, color: MUTED, letterSpacing: 1 }}>{lastUpdated ? relativeTime(lastUpdated) : "syncing..."}</span>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: statsLoading ? GOLD : GREEN, boxShadow: `0 0 6px ${statsLoading ? GOLD : GREEN}` }} />
+              <span style={{ fontSize: 11, color: MUTED, letterSpacing: 1 }}>{lastUpdated ? relativeTime(lastUpdated) : "syncing..."}</span>
+            </div>
+            <NotificationBell
+              notifications={notifications}
+              unread={notifications.filter(n => !n.read).length}
+              onMarkAllRead={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+              onClear={() => setNotifications([])}
+              onMarkRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))}
+              onNavigate={(target) => setNav(target)}
+            />
           </div>
         </div>
 
