@@ -52,12 +52,12 @@ function StatCard({ label, value, sub, color, pulse }: {
   );
 }
 
-function AgentRow({ name, status, lastRun, nextRun, todayCount }: {
-  name: string; status: "running" | "idle" | "error"; lastRun: string; nextRun: string; todayCount: number;
+function AgentRow({ name, status, lastRun, nextRun, todayCount, onClick }: {
+  name: string; status: "running" | "idle" | "error"; lastRun: string; nextRun: string; todayCount: number; onClick?: () => void;
 }) {
   const statusColor = status === "running" ? GREEN : status === "error" ? RED : MUTED;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 140px 140px 80px", padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "center", gap: 12 }}>
+    <div onClick={onClick} style={{ display: "grid", gridTemplateColumns: "1fr 100px 140px 140px 80px", padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "center", gap: 12, cursor: onClick ? "pointer" : "default", transition: "background 0.15s" }} onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}>
       <span style={{ color: TEXT, fontFamily: "monospace", fontSize: 13 }}>{name}</span>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 7, height: 7, borderRadius: "50%", background: statusColor, boxShadow: status === "running" ? `0 0 6px ${GREEN}` : "none" }} />
@@ -66,6 +66,7 @@ function AgentRow({ name, status, lastRun, nextRun, todayCount }: {
       <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{lastRun}</span>
       <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{nextRun}</span>
       <span style={{ fontSize: 13, color: GOLD, fontFamily: "monospace", textAlign: "right" }}>{todayCount}</span>
+      {onClick && <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", textAlign: "right", gridColumn: "6" }}>›</span>}
     </div>
   );
 }
@@ -562,6 +563,93 @@ function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => 
   );
 }
 
+// ── Agent Log Panel (1.2) ─────────────────────────────────────────────────────
+
+interface AgentLogData {
+  script: string;
+  log_path: string | null;
+  last_modified: string;
+  file_size: number;
+  status: "running" | "idle" | "error";
+  lines: string[];
+}
+
+function AgentLogPanel({ script }: { script: string }) {
+  const [data, setData] = useState<AgentLogData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const resp = await fetch(`/api/agent-log?script=${encodeURIComponent(script)}&n=80`);
+      if (resp.ok) setData(await resp.json());
+    } catch { /* silent */ }
+    setLoading(false);
+  }, [script]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [data]);
+
+  const statusColor = data?.status === "running" ? GREEN : data?.status === "error" ? RED : MUTED;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, height: "100%" }}>
+      {/* Header meta */}
+      <div style={{ background: DARK, borderRadius: 10, padding: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 13, color: TEXT, fontFamily: "monospace", fontWeight: 700 }}>{script}</div>
+          {data && (
+            <span style={{ fontSize: 10, color: statusColor, background: "rgba(255,255,255,0.05)", padding: "2px 8px", borderRadius: 4, letterSpacing: 1, fontFamily: "monospace", textTransform: "uppercase" }}>{data.status}</span>
+          )}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {[
+            { label: "LAST RUN",  value: data?.last_modified ? relativeTime(new Date(data.last_modified)) : "—" },
+            { label: "LOG SIZE",  value: data?.file_size ? `${(data.file_size / 1024).toFixed(1)} KB` : "—" },
+            { label: "LOG FILE",  value: data?.log_path || "none" },
+          ].map(({ label, value }) => (
+            <div key={label} style={{ padding: "8px 10px", background: PANEL, borderRadius: 6 }}>
+              <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 3 }}>{label}</div>
+              <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", wordBreak: "break-all" }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Log lines */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 9, color: MUTED, letterSpacing: 1 }}>LAST {data?.lines.length || 0} LINES</span>
+          <button onClick={load} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "3px 10px", color: MUTED, fontSize: 10, cursor: "pointer", fontFamily: "monospace", letterSpacing: 1 }}>REFRESH</button>
+        </div>
+        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", background: "#050508", borderRadius: 8, padding: 14, border: `1px solid ${BORDER}` }}>
+          {loading ? (
+            <div style={{ color: MUTED, fontSize: 11, fontFamily: "monospace" }}>Loading...</div>
+          ) : data?.lines.length ? (
+            data.lines.map((line, i) => {
+              const isError = /error|exception|traceback|critical/i.test(line);
+              const isWarn  = /warn|warning/i.test(line);
+              const isOk    = /success|done|submitted|email_sent|ok\b/i.test(line);
+              const color   = isError ? RED : isWarn ? GOLD : isOk ? GREEN : "#8888aa";
+              return (
+                <div key={i} style={{ fontFamily: "monospace", fontSize: 10, color, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  {line || " "}
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ color: MUTED, fontSize: 11, fontFamily: "monospace" }}>No log lines found.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Notification Bell ─────────────────────────────────────────────────────────
 
 function NotificationBell({ notifications, unread, onMarkAllRead, onClear, onMarkRead, onNavigate }: {
@@ -657,6 +745,12 @@ const SCHEDULES: Record<string, number> = {
   "taylor-email-cleanup.py": 720,
 };
 
+// Scripts that have a known log file (clickable in agents section)
+const LOG_PATHS_HAVE = new Set([
+  "reply-monitor.py", "outreach.py", "stephie-outreach.py",
+  "morning-report.py", "pipeline-monitor.py", "taylor-email-cleanup.py", "nightly-review.py",
+]);
+
 function buildAgentRows(agentsData: StatsCache["agents"] | undefined) {
   const base = [
     { name: "ace",                     nextRun: "continuous"       },
@@ -698,6 +792,7 @@ export default function Dashboard() {
   const [notifications, setNotifications]     = useState<Notification[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
   const [activityFilter, setActivityFilter]     = useState({ sender: "", trade: "", eventType: "" });
+  const [selectedAgent, setSelectedAgent]       = useState<string | null>(null);
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
       ...n,
@@ -1132,7 +1227,9 @@ export default function Dashboard() {
                     <span key={i} style={{ fontSize: 10, color: MUTED, letterSpacing: 1, textAlign: i === 4 ? "right" : "left" }}>{h}</span>
                   ))}
                 </div>
-                {agentRows.map((a, i) => <AgentRow key={i} {...a} />)}
+                {agentRows.map((a, i) => (
+                  <AgentRow key={i} {...a} onClick={LOG_PATHS_HAVE.has(a.name) ? () => setSelectedAgent(a.name) : undefined} />
+                ))}
               </div>
             </div>
           )}
@@ -1191,6 +1288,11 @@ export default function Dashboard() {
       {/* 1.1 — Activity detail slide panel */}
       <SlidePanel open={!!selectedActivity} onClose={() => setSelectedActivity(null)} title="ACTIVITY DETAIL">
         {selectedActivity && <ActivityDetail item={selectedActivity} onClose={() => setSelectedActivity(null)} />}
+      </SlidePanel>
+
+      {/* 1.2 — Agent log slide panel */}
+      <SlidePanel open={!!selectedAgent} onClose={() => setSelectedAgent(null)} title="AGENT LOG">
+        {selectedAgent && <AgentLogPanel script={selectedAgent} />}
       </SlidePanel>
 
       <ChatPanel role={role} messages={chatMessages} setMessages={setChatMessages} channel={channel} />
