@@ -46,6 +46,16 @@ function deriveAgentStatus(name: string, lastModified: string): "running" | "idl
   return "idle";
 }
 
+// ── Territory derivation ──────────────────────────────────────────────────────
+function deriveTerritory(address: string): string {
+  const lower = address.toLowerCase();
+  const coachella = ["palm springs", "palm desert", "rancho mirage", "cathedral city", "indio", "la quinta", "desert hot springs"];
+  if (coachella.some(c => lower.includes(c))) return "Coachella Valley";
+  if (lower.includes(", nc") || lower.includes(", sc") || lower.includes("charlotte")) return "Charlotte NC";
+  if (lower.includes(", ca")) return "LA County";
+  return "Other";
+}
+
 // ── JSONL streaming reader ────────────────────────────────────────────────────
 async function streamJsonl(filePath: string): Promise<unknown[]> {
   if (!fs.existsSync(filePath)) return [];
@@ -150,8 +160,9 @@ async function buildFromLocal() {
     repliesData.by_classification[cls] = (repliesData.by_classification[cls] || 0) + 1;
   }
 
-  // Activity feed — last 50 events merged
-  const activityItems: Array<{ ts: string; type: string; msg: string; _sort: number }> = [];
+  // Activity feed — last 50 events merged, enriched with detail fields
+  type ActivityRaw = { ts: string; type: string; msg: string; _sort: number; [k: string]: unknown };
+  const activityItems: ActivityRaw[] = [];
 
   for (const row of (submissions as Record<string, string>[]).slice(-100)) {
     const rts = row.ts || row.timestamp || "";
@@ -166,6 +177,14 @@ async function buildFromLocal() {
       type,
       msg: `PDS → ${biz}${city ? ` (${city})` : ""} — ${row.outcome}`,
       _sort: new Date(rts).getTime(),
+      business_name: biz,
+      website: row.website || "",
+      address: addr,
+      trade: row.trade || "",
+      sender: row.sender || "",
+      outcome: row.outcome || "",
+      territory: addr ? deriveTerritory(addr) : "",
+      place_id: row.place_id || "",
     });
   }
 
@@ -177,6 +196,12 @@ async function buildFromLocal() {
       type: "REPLY",
       msg: `Reply from ${r.from || "unknown"} — ${r.classification || "unclassified"}`,
       _sort: new Date(rts).getTime(),
+      business_name: r.biz_name || "",
+      from_email: r.from || "",
+      classification: r.classification || "",
+      trade: r.trade || "",
+      sender: r.sender || "",
+      ghl_contact: r.ghl_contact || "",
     });
   }
 

@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   useStats, useGHL, useWorkspace, useClock, relativeTime,
-  type StatsCache, type GHLData, type WorkspaceData, type Todo, type FileEntry,
+  type StatsCache, type GHLData, type WorkspaceData, type Todo, type FileEntry, type ActivityItem,
 } from "./hooks/useDashboard";
 import { usePollingChannel, type ThreadMessage } from "./hooks/usePilotChannel";
 
@@ -435,6 +435,133 @@ function getCookie(name: string): string {
   return m ? m[2] : "";
 }
 
+// ── Slide Panel (base) ────────────────────────────────────────────────────────
+
+function SlidePanel({ open, onClose, title, children }: {
+  open: boolean; onClose: () => void; title: string; children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+  if (!open) return null;
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(8,8,16,0.7)" }} />
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, zIndex: 301, background: PANEL, borderLeft: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", animation: "slideInRight 0.2s ease" }}>
+        <div style={{ padding: "18px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+          <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>{title}</span>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "4px 12px", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: "monospace" }}>ESC</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>{children}</div>
+      </div>
+    </>
+  );
+}
+
+// ── Activity Detail (1.1) ─────────────────────────────────────────────────────
+
+const GHL_LOCATION = "yQEQSa2RZOkQaDlCAfit";
+
+function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => void }) {
+  const [suppressing, setSuppressing] = useState(false);
+  const [suppressed, setSuppressed]   = useState(false);
+
+  const domain = item.website
+    ? item.website.replace(/^https?:\/\//, "").split("/")[0].replace(/^www\./, "").split("?")[0]
+    : "";
+
+  const ghlUrl = item.ghl_contact
+    ? `https://app.gohighlevel.com/location/${GHL_LOCATION}/contacts/detail/${item.ghl_contact}`
+    : item.website || null;
+
+  const handleSuppress = async () => {
+    if (!domain || suppressing) return;
+    setSuppressing(true);
+    try {
+      await fetch("/api/suppress", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ domain }),
+      });
+      setSuppressed(true);
+    } catch { /* silent */ }
+    setSuppressing(false);
+  };
+
+  const details = [
+    { label: "OUTCOME",   value: item.outcome || item.classification || item.type },
+    { label: "SENDER",    value: item.sender || "—" },
+    { label: "TERRITORY", value: item.territory || "—" },
+    { label: "TRADE",     value: item.trade || "—" },
+    { label: "TIME",      value: item.ts },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Business */}
+      <div style={{ background: DARK, borderRadius: 10, padding: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: 1, color: item.type === "SEND" ? BLUE : item.type === "REPLY" ? GREEN : RED, background: "rgba(255,255,255,0.05)", padding: "2px 8px", borderRadius: 4 }}>{item.type}</span>
+        </div>
+        <div style={{ fontSize: 17, color: TEXT, fontFamily: "monospace", fontWeight: 700, lineHeight: 1.3 }}>{item.business_name || item.from_email || "Unknown"}</div>
+      </div>
+
+      {/* Detail grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {details.map(({ label, value }) => value && value !== "—" ? (
+          <div key={label} style={{ background: DARK, borderRadius: 8, padding: 12 }}>
+            <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 11, color: TEXT, fontFamily: "monospace", wordBreak: "break-word" }}>{value}</div>
+          </div>
+        ) : null)}
+      </div>
+
+      {/* Address */}
+      {item.address && (
+        <div style={{ background: DARK, borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>ADDRESS</div>
+          <div style={{ fontSize: 11, color: TEXT, fontFamily: "monospace" }}>{item.address}</div>
+        </div>
+      )}
+
+      {/* Website */}
+      {domain && (
+        <div style={{ background: DARK, borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>WEBSITE</div>
+          <a href={item.website} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: GOLD, fontFamily: "monospace", wordBreak: "break-all", textDecoration: "none" }}>{domain}</a>
+        </div>
+      )}
+
+      {/* Reply classification */}
+      {item.classification && (
+        <div style={{ background: DARK, borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>CLASSIFICATION</div>
+          <div style={{ fontSize: 13, color: item.classification === "INTERESTED" ? GREEN : TEXT, fontFamily: "monospace", letterSpacing: 1 }}>{item.classification}</div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+        {ghlUrl && (
+          <a href={ghlUrl} target="_blank" rel="noreferrer" style={{ display: "block", background: GOLD, borderRadius: 8, padding: "11px 0", color: DARK, fontSize: 11, fontWeight: 700, letterSpacing: 2, fontFamily: "monospace", textAlign: "center", textDecoration: "none" }}>
+            VIEW IN GHL →
+          </a>
+        )}
+        {domain && (
+          <button onClick={handleSuppress} disabled={suppressing || suppressed} style={{ background: "none", border: `1px solid ${suppressed ? GREEN : RED}`, borderRadius: 8, padding: "10px 0", color: suppressed ? GREEN : RED, fontSize: 11, fontWeight: 700, letterSpacing: 2, cursor: suppressed ? "default" : "pointer", fontFamily: "monospace" }}>
+            {suppressed ? "✓ DOMAIN SUPPRESSED" : suppressing ? "SUPPRESSING..." : "SUPPRESS DOMAIN"}
+          </button>
+        )}
+        <button onClick={onClose} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 0", color: MUTED, fontSize: 11, letterSpacing: 2, cursor: "default", fontFamily: "monospace" }}>
+          RETRY CONTACT — COMING SOON
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Notification Bell ─────────────────────────────────────────────────────────
 
 function NotificationBell({ notifications, unread, onMarkAllRead, onClear, onMarkRead, onNavigate }: {
@@ -568,7 +695,9 @@ export default function Dashboard() {
   const [role, setRole] = useState<string>("SUPER_ADMIN");
   const [seatId, setSeatId] = useState<string>("");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications]     = useState<Notification[]>([]);
+  const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
+  const [activityFilter, setActivityFilter]     = useState({ sender: "", trade: "", eventType: "" });
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
       ...n,
@@ -611,6 +740,15 @@ export default function Dashboard() {
   const activity = stats?.activity ?? [];
   const agentRows = buildAgentRows(stats?.agents);
   const runningCount = agentRows.filter(a => a.status === "running").length;
+
+  // Activity filter derivations
+  const filteredActivity = activity.filter(a =>
+    (!activityFilter.sender    || a.sender === activityFilter.sender) &&
+    (!activityFilter.trade     || a.trade  === activityFilter.trade) &&
+    (!activityFilter.eventType || a.type   === activityFilter.eventType)
+  );
+  const activitySenders   = [...new Set(activity.map(a => a.sender).filter(Boolean))] as string[];
+  const activityTrades    = [...new Set(activity.map(a => a.trade).filter(Boolean))]  as string[];
 
   // ── Notification watchers ─────────────────────────────────────────────────────
   const interestedCount = replies?.by_classification?.["INTERESTED"] ?? 0;
@@ -677,11 +815,14 @@ export default function Dashboard() {
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: ${DARK}; }
         ::-webkit-scrollbar-thumb { background: ${BORDER}; border-radius: 2px; }
         body { background: ${DARK}; }
         textarea { box-sizing: border-box; }
+        select { outline: none; }
       `}</style>
 
       {/* Sidebar */}
@@ -791,18 +932,42 @@ export default function Dashboard() {
                 </div>
 
                 <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-                  <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}` }}>
+                  <div style={{ padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ACTIVITY FEED</span>
+                    <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{filteredActivity.length} events</span>
+                  </div>
+                  {/* Filters */}
+                  <div style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                    {([
+                      { key: "sender"    as const, label: "SENDER", opts: activitySenders },
+                      { key: "trade"     as const, label: "TRADE",  opts: activityTrades  },
+                      { key: "eventType" as const, label: "TYPE",   opts: ["SEND","REPLY","ERROR"] },
+                    ] as const).map(({ key, label, opts }) => (
+                      <select key={key} value={activityFilter[key]} onChange={e => setActivityFilter(f => ({ ...f, [key]: e.target.value }))}
+                        style={{ background: DARK, border: `1px solid ${activityFilter[key] ? GOLD : BORDER}`, borderRadius: 4, padding: "4px 6px", color: activityFilter[key] ? TEXT : MUTED, fontSize: 9, fontFamily: "monospace", letterSpacing: 1, cursor: "pointer" }}>
+                        <option value="">ALL {label}S</option>
+                        {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ))}
+                    {(activityFilter.sender || activityFilter.trade || activityFilter.eventType) && (
+                      <button onClick={() => setActivityFilter({ sender: "", trade: "", eventType: "" })}
+                        style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "4px 8px", color: MUTED, fontSize: 9, fontFamily: "monospace", cursor: "pointer", letterSpacing: 1 }}>CLEAR</button>
+                    )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                    {activity.length === 0 && <div style={{ padding: 20, color: MUTED, fontSize: 11, fontFamily: "monospace" }}>No activity yet.</div>}
-                    {activity.slice(0, 8).map((item, i) => (
-                      <div key={i} style={{ display: "flex", gap: 16, padding: "10px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "flex-start" }}>
+                    {filteredActivity.length === 0 && <div style={{ padding: 20, color: MUTED, fontSize: 11, fontFamily: "monospace" }}>No activity matching filters.</div>}
+                    {filteredActivity.slice(0, 15).map((item, i) => (
+                      <div key={i} onClick={() => setSelectedActivity(item)}
+                        style={{ display: "flex", gap: 16, padding: "10px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "flex-start", cursor: "pointer" }}>
                         <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", whiteSpace: "nowrap", paddingTop: 2, minWidth: 80 }}>{item.ts}</span>
                         <span style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: 1, color: item.type === "SEND" ? BLUE : item.type === "REPLY" ? GREEN : item.type === "ERROR" ? RED : GOLD, minWidth: 60, paddingTop: 2 }}>{item.type}</span>
-                        <span style={{ fontSize: 12, color: TEXT, fontFamily: "monospace" }}>{item.msg}</span>
+                        <span style={{ fontSize: 12, color: TEXT, fontFamily: "monospace", flex: 1 }}>{item.msg}</span>
+                        <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", flexShrink: 0 }}>›</span>
                       </div>
                     ))}
+                    {filteredActivity.length > 15 && (
+                      <div style={{ padding: "10px 20px", color: MUTED, fontSize: 10, fontFamily: "monospace" }}>+{filteredActivity.length - 15} more — use filters to narrow</div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1022,6 +1187,11 @@ export default function Dashboard() {
           <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{time.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour12: false })} PST</span>
         </div>
       </div>
+
+      {/* 1.1 — Activity detail slide panel */}
+      <SlidePanel open={!!selectedActivity} onClose={() => setSelectedActivity(null)} title="ACTIVITY DETAIL">
+        {selectedActivity && <ActivityDetail item={selectedActivity} onClose={() => setSelectedActivity(null)} />}
+      </SlidePanel>
 
       <ChatPanel role={role} messages={chatMessages} setMessages={setChatMessages} channel={channel} />
     </div>

@@ -7,6 +7,18 @@ export interface ActivityItem {
   ts: string;
   type: "SEND" | "REPLY" | "SCAN" | "ALERT" | "REPORT" | "ERROR";
   msg: string;
+  // Enriched detail fields (populated from JSONL)
+  business_name?: string;
+  website?: string;
+  address?: string;
+  trade?: string;
+  sender?: string;
+  outcome?: string;
+  territory?: string;
+  place_id?: string;
+  ghl_contact?: string;
+  from_email?: string;
+  classification?: string;
 }
 
 export interface AgentStatus {
