@@ -1297,7 +1297,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className={`root-layout${mobileMenuOpen ? " menu-open" : ""}`} style={{ background: DARK, color: TEXT, fontFamily: "monospace" }}>
+    <div className="root-layout" style={{ background: DARK, color: TEXT, fontFamily: "monospace" }}>
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
@@ -1308,10 +1308,10 @@ export default function Dashboard() {
       `}</style>
 
       {/* Mobile overlay — only rendered when menu is open */}
-      <div className="nav-overlay" onClick={() => setMobileMenuOpen(false)} />
+      {mobileMenuOpen && <div className="nav-overlay" onClick={() => setMobileMenuOpen(false)} />}
 
       {/* Sidebar */}
-      <div className="sidebar" style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, padding: "24px 0" }}>
+      <div className={`sidebar${mobileMenuOpen ? " open" : ""}`} style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, padding: "24px 0" }}>
         <div style={{ padding: "0 24px 28px", borderBottom: `1px solid ${BORDER}` }}>
           <img src="/ace-logo.png" alt="AcePilot" style={{ width: 48, height: 48 }} />
           <div style={{ fontSize: 10, color: MUTED, letterSpacing: 3, marginTop: 6 }}>ACEPILOT.AI</div>
