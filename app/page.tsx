@@ -1307,8 +1307,8 @@ export default function Dashboard() {
         select { outline: none; }
       `}</style>
 
-      {/* Mobile overlay */}
-      <div onClick={() => setMobileMenuOpen(false)} className="ace-overlay" style={{ display: "none", position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 499 }} />
+      {/* Mobile overlay — only rendered when menu is open */}
+      {mobileMenuOpen && <div onClick={() => setMobileMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 499 }} />}
 
       {/* Sidebar */}
       <div className={`ace-sidebar${mobileMenuOpen ? " open" : ""}`} style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", padding: "24px 0" }}>

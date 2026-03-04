@@ -73,5 +73,4 @@ html, body {
   }
   .ace-sidebar.open { transform: translateX(0) !important; }
   .ace-hamburger { display: flex !important; }
-  .ace-overlay { display: block !important; }
 }
