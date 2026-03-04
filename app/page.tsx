@@ -421,7 +421,7 @@ function ChatPanel({ role, messages, setMessages, channel }: {
   };
 
   return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: PANEL, borderTop: `1px solid ${open ? GOLD : BORDER}`, height: open ? 340 : 44, overflow: "hidden", display: "flex", flexDirection: "column", transition: "height 0.2s ease, border-color 0.2s ease" }}>
+    <div className="ace-chatpanel" style={{ position: "fixed", bottom: 0, right: 0, zIndex: 200, background: PANEL, borderTop: `1px solid ${open ? GOLD : BORDER}`, height: open ? 340 : 44, overflow: "hidden", display: "flex", flexDirection: "column", transition: "height 0.2s ease, border-color 0.2s ease" }}>
       <div onClick={() => setOpen(o => !o)} style={{ height: 44, flexShrink: 0, display: "flex", alignItems: "center", gap: 10, padding: "0 28px", cursor: "pointer", userSelect: "none", borderBottom: open ? `1px solid ${BORDER}` : "none" }}>
         <img src="/ace-logo.png" alt="" style={{ width: 20, height: 20, opacity: 0.85 }} />
         <span style={{ fontSize: 11, color: GOLD, letterSpacing: 2, fontFamily: "monospace" }}>TALK TO {agentLabel.toUpperCase()}</span>
@@ -1343,7 +1343,7 @@ export default function Dashboard() {
         {/* Top bar */}
         <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: PANEL, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="ace-hamburger" onClick={() => setMobileMenuOpen(o => !o)} style={{ display: "none", background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 10px", color: MUTED, cursor: "pointer", fontSize: 16, alignItems: "center" }}>☰</button>
+            <button className="ace-hamburger" onClick={() => setMobileMenuOpen(o => !o)} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 10px", color: MUTED, cursor: "pointer", fontSize: 16, alignItems: "center" }}>☰</button>
             <div>
               <div style={{ fontSize: 14, color: TEXT, letterSpacing: 2 }}>{navItems.find(n => n.id === nav)?.label.toUpperCase()}</div>
               <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
@@ -1365,8 +1365,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Content */}
-        <div style={{ padding: 32, flex: 1 }}>
+        {/* Content — extra bottom padding so chat bar doesn't cover content */}
+        <div style={{ padding: 32, paddingBottom: 56, flex: 1 }}>
 
           {/* MISSION CONTROL — CLOSER */}
           {nav === "mission" && role === "CLOSER" && (
