@@ -1,5 +1,5 @@
 # AcePilot Dashboard — Current State
-_Last updated: 2026-03-03 | Deploy 36_
+_Last updated: 2026-03-03 | Deploy 41_
 
 ## Stack
 Next.js 16, TypeScript, App Router, Recharts, deployed to dashboard.acepilot.ai via Vercel.
