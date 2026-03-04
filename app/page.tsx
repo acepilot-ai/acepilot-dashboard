@@ -1179,7 +1179,6 @@ export default function Dashboard() {
   const [drillDown, setDrillDown]               = useState<string | null>(null);
   const [pipelineTab, setPipelineTab]           = useState<"closers" | "contacts" | "opportunities">("closers");
   const [analyticsTab, setAnalyticsTab]         = useState<"volume" | "trades" | "senders" | "territory">("volume");
-  const [mobileMenuOpen, setMobileMenuOpen]     = useState(false);
   const [selectedCloser, setSelectedCloser]     = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
@@ -1307,18 +1306,15 @@ export default function Dashboard() {
         select { outline: none; }
       `}</style>
 
-      {/* Mobile overlay — only rendered when menu is open */}
-      {mobileMenuOpen && <div className="nav-overlay" onClick={() => setMobileMenuOpen(false)} />}
-
       {/* Sidebar */}
-      <div className={`sidebar${mobileMenuOpen ? " open" : ""}`} style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, padding: "24px 0" }}>
+      <div className="sidebar" style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, padding: "24px 0" }}>
         <div style={{ padding: "0 24px 28px", borderBottom: `1px solid ${BORDER}` }}>
           <img src="/ace-logo.png" alt="AcePilot" style={{ width: 48, height: 48 }} />
           <div style={{ fontSize: 10, color: MUTED, letterSpacing: 3, marginTop: 6 }}>ACEPILOT.AI</div>
         </div>
         <nav style={{ padding: "20px 0", flex: 1 }}>
           {navItems.map(item => (
-            <button key={item.id} onClick={() => { setNav(item.id); setMobileMenuOpen(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 24px", background: "none", border: "none", cursor: "pointer", fontSize: 12, letterSpacing: 1, color: nav === item.id ? GOLD : MUTED, borderLeft: nav === item.id ? `2px solid ${GOLD}` : "2px solid transparent", transition: "all 0.15s" }}>{item.label.toUpperCase()}</button>
+            <button key={item.id} onClick={() => setNav(item.id)} style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 24px", background: "none", border: "none", cursor: "pointer", fontSize: 12, letterSpacing: 1, color: nav === item.id ? GOLD : MUTED, borderLeft: nav === item.id ? `2px solid ${GOLD}` : "2px solid transparent", transition: "all 0.15s" }}>{item.label.toUpperCase()}</button>
           ))}
         </nav>
         <div style={{ padding: "16px 24px", borderTop: `1px solid ${BORDER}` }}>
@@ -1343,7 +1339,6 @@ export default function Dashboard() {
         {/* Top bar */}
         <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: PANEL, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="hamburger" onClick={() => setMobileMenuOpen(o => !o)} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 10px", color: MUTED, cursor: "pointer", fontSize: 16 }}>☰</button>
             <div>
               <div style={{ fontSize: 14, color: TEXT, letterSpacing: 2 }}>{navItems.find(n => n.id === nav)?.label.toUpperCase()}</div>
               <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
@@ -1366,12 +1361,12 @@ export default function Dashboard() {
         </div>
 
         {/* Content */}
-        <div className="content-area" style={{ padding: 32 }}>
+        <div className="content-area">
 
           {/* MISSION CONTROL — CLOSER */}
           {nav === "mission" && role === "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+              <div className="stat-grid-4">
                 <StatCard label="My Sends Today" value={pds?.by_sender[seatInfo.senderName]?.today ?? 0} sub={seatInfo.territory} color={GOLD} pulse />
                 <StatCard label="My Sends All Time" value={pds?.by_sender[seatInfo.senderName]?.total ?? 0} sub="All time outreach" />
                 <StatCard label="Territory" value="ACTIVE" sub={seatInfo.territory} color={GREEN} />
@@ -1398,14 +1393,14 @@ export default function Dashboard() {
           {/* MISSION CONTROL — OWNER / ADMIN */}
           {nav === "mission" && role !== "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+              <div className="stat-grid-4">
                 <StatCard label="Total Contacted" value={totalContacted.toLocaleString()} sub="All time, all campaigns" pulse onClick={() => setDrillDown("total")} />
                 <StatCard label="Today's Sends" value={todaySends} sub={`PDS: ${pds?.today ?? 0} · Stephie: ${stephie?.today ?? 0}`} color={GOLD} onClick={() => setDrillDown("today")} />
                 <StatCard label="Reply Rate" value={replyRate} sub={`${replies?.total ?? 0} replies / ${totalContacted} sends`} onClick={() => setDrillDown("replies")} />
                 <StatCard label="Pending Approvals" value="0" sub="Approval queue clear" color={GREEN} />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+              <div className="two-col-grid">
                 <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
                   <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ACTIVE AGENTS</span>
@@ -1460,7 +1455,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+              <div className="two-col-grid">
                 <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 24 }}>
                   <div style={{ fontSize: 11, letterSpacing: 2, color: MUTED, marginBottom: 16 }}>PDS OUTREACH</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -1486,7 +1481,7 @@ export default function Dashboard() {
           {/* PIPELINE — CLOSER */}
           {nav === "pipeline" && role === "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+              <div className="stat-grid-3">
                 <StatCard label="My GHL Leads" value={closers.find(c => c.id === seatInfo.ghlId)?.leads ?? 0} sub="Contacts assigned to me" color={GREEN} pulse />
                 <StatCard label="My Sends" value={closers.find(c => c.id === seatInfo.ghlId)?.sends ?? 0} sub="Outreach attributed" color={BLUE} />
                 <StatCard label="Cold Deals" value={closers.find(c => c.id === seatInfo.ghlId)?.cold ?? 0} sub="No stale deals" color={GREEN} />
@@ -1508,7 +1503,7 @@ export default function Dashboard() {
           {/* PIPELINE — OWNER / ADMIN */}
           {nav === "pipeline" && role !== "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+              <div className="stat-grid-3">
                 <StatCard label="Total GHL Contacts" value={ghlData?.total_contacts ?? "—"} sub="Across all closers" />
                 <StatCard label="Open Opportunities" value={ghlData?.open_opportunities ?? "—"} sub="Pipeline building" />
                 <StatCard label="Cold Deals" value="0" sub="No stale deals" color={GREEN} />
@@ -1549,13 +1544,13 @@ export default function Dashboard() {
           {/* OUTREACH */}
           {nav === "outreach" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+              <div className="stat-grid-4">
                 <StatCard label="All Time Sends" value={totalContacted} sub="PDS + Stephie combined" />
                 <StatCard label="Forms Submitted" value={(pds?.by_outcome.form ?? 0) + (stephie?.by_outcome.form ?? 0)} sub={totalContacted > 0 ? `${(((pds?.by_outcome.form ?? 0) + (stephie?.by_outcome.form ?? 0)) / totalContacted * 100).toFixed(1)}% of sends` : "—"} color={BLUE} />
                 <StatCard label="Emails Sent" value={(pds?.by_outcome.email ?? 0) + (stephie?.by_outcome.email ?? 0)} sub={totalContacted > 0 ? `${(((pds?.by_outcome.email ?? 0) + (stephie?.by_outcome.email ?? 0)) / totalContacted * 100).toFixed(1)}% of sends` : "—"} color={GOLD} />
                 <StatCard label="Reply Rate" value={replyRate} sub={`${replies?.total ?? 0} total replies`} />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+              <div className="two-col-grid">
                 <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
                   <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}` }}>
                     <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>PDS — SENDER BREAKDOWN</span>
@@ -1638,7 +1633,7 @@ export default function Dashboard() {
           {/* AGENTS — OWNER / ADMIN */}
           {nav === "agents" && role !== "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+              <div className="stat-grid-4">
                 <StatCard label="Total Agents" value="6" sub="Ace · Trinity · Atlas · Forge · Ridge · Crest" pulse />
                 <StatCard label="Cron Scripts" value={Object.keys(SCHEDULES).length} sub="Active scheduled jobs" />
                 <StatCard label="Running Now" value={runningCount} sub="Live agents" color={GREEN} />
@@ -1706,11 +1701,28 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div style={{ padding: "12px 32px", borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+        <div className="footer-bar" style={{ padding: "12px 32px", borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>ACEPILOT.AI — MISSION CONTROL v0.2</span>
           <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{time?.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour12: false }) ?? "--"} PST</span>
         </div>
         <ChatPanel role={role} messages={chatMessages} setMessages={setChatMessages} channel={channel} />
+        <nav className="bottom-nav" style={{ background: PANEL, borderTop: `1px solid ${BORDER}` }}>
+          {navItems.filter(n => ["mission", "pipeline", "analytics", "workspace"].includes(n.id)).map(item => {
+            const ICONS: Record<string, string> = { mission: "🎯", pipeline: "📋", analytics: "📊", workspace: "📁" };
+            return (
+              <button key={item.id} onClick={() => setNav(item.id)} style={{
+                flex: 1, height: "100%", background: "none", border: "none", cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 3, color: nav === item.id ? GOLD : MUTED,
+                borderTop: nav === item.id ? `2px solid ${GOLD}` : "2px solid transparent",
+                minHeight: 44,
+              }}>
+                <span style={{ fontSize: 18 }}>{ICONS[item.id] || "●"}</span>
+                <span style={{ fontSize: 9, letterSpacing: 1, fontFamily: "monospace" }}>{item.label.split(" ")[0].toUpperCase()}</span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {/* 1.4 — Closer detail modal */}
