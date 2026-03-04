@@ -49,30 +49,79 @@ html, body {
 }
 
 /* ── Dashboard layout ────────────────────────────────────────── */
-/* Desktop: sidebar is a fixed-width flex child. Both panels scroll
-   independently inside a 100vh container (most reliable cross-browser). */
-.ace-sidebar {
+
+/* Root: full-viewport flex row */
+.root-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Sidebar: fixed-width flex child on desktop */
+.sidebar {
   width: 220px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   overflow-y: auto;
 }
-.ace-hamburger { display: none !important; }
-.ace-chatpanel { left: 220px; }
 
-/* Mobile: sidebar slides in as a fixed overlay */
+/* Main column: fills remaining width, flex column */
+.main-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Scrollable content area */
+.content-area {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Hamburger: hidden on desktop */
+.hamburger { display: none; }
+
+/* Mobile overlay: hidden by default */
+.nav-overlay { display: none; }
+
+/* ── Mobile (≤ 767px) ── */
 @media (max-width: 767px) {
-  .ace-sidebar {
-    position: fixed !important;
+  /* Sidebar becomes a slide-in overlay */
+  .sidebar {
+    position: absolute;
     top: 0;
     left: 0;
-    height: 100vh !important;
-    width: 240px !important;
-    z-index: 500;
+    height: 100%;
+    width: 260px;
+    z-index: 50;
     transform: translateX(-100%);
-    transition: transform 0.22s ease;
+    transition: transform 0.25s ease;
   }
-  .ace-sidebar.open { transform: translateX(0) !important; }
-  .ace-hamburger { display: flex !important; }
-  .ace-chatpanel { left: 0 !important; }
+  .root-layout.menu-open .sidebar {
+    transform: translateX(0);
+  }
+
+  /* Hamburger visible on mobile */
+  .hamburger {
+    display: flex;
+    align-items: center;
+  }
+
+  /* Dark overlay when menu is open */
+  .root-layout.menu-open .nav-overlay {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 49;
+    background: rgba(0, 0, 0, 0.65);
+    cursor: pointer;
+  }
 }

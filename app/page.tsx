@@ -421,7 +421,7 @@ function ChatPanel({ role, messages, setMessages, channel }: {
   };
 
   return (
-    <div className="ace-chatpanel" style={{ position: "fixed", bottom: 0, right: 0, zIndex: 200, background: PANEL, borderTop: `1px solid ${open ? GOLD : BORDER}`, height: open ? 340 : 44, overflow: "hidden", display: "flex", flexDirection: "column", transition: "height 0.2s ease, border-color 0.2s ease" }}>
+    <div style={{ background: PANEL, borderTop: `1px solid ${open ? GOLD : BORDER}`, height: open ? 340 : 44, overflow: "hidden", display: "flex", flexDirection: "column", transition: "height 0.2s ease, border-color 0.2s ease", flexShrink: 0 }}>
       <div onClick={() => setOpen(o => !o)} style={{ height: 44, flexShrink: 0, display: "flex", alignItems: "center", gap: 10, padding: "0 28px", cursor: "pointer", userSelect: "none", borderBottom: open ? `1px solid ${BORDER}` : "none" }}>
         <img src="/ace-logo.png" alt="" style={{ width: 20, height: 20, opacity: 0.85 }} />
         <span style={{ fontSize: 11, color: GOLD, letterSpacing: 2, fontFamily: "monospace" }}>TALK TO {agentLabel.toUpperCase()}</span>
@@ -1297,7 +1297,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: DARK, color: TEXT, fontFamily: "monospace", overflow: "hidden" }}>
+    <div className={`root-layout${mobileMenuOpen ? " menu-open" : ""}`} style={{ background: DARK, color: TEXT, fontFamily: "monospace" }}>
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
@@ -1308,10 +1308,10 @@ export default function Dashboard() {
       `}</style>
 
       {/* Mobile overlay — only rendered when menu is open */}
-      {mobileMenuOpen && <div onClick={() => setMobileMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 499 }} />}
+      <div className="nav-overlay" onClick={() => setMobileMenuOpen(false)} />
 
       {/* Sidebar */}
-      <div className={`ace-sidebar${mobileMenuOpen ? " open" : ""}`} style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", padding: "24px 0" }}>
+      <div className="sidebar" style={{ background: PANEL, borderRight: `1px solid ${BORDER}`, padding: "24px 0" }}>
         <div style={{ padding: "0 24px 28px", borderBottom: `1px solid ${BORDER}` }}>
           <img src="/ace-logo.png" alt="AcePilot" style={{ width: 48, height: 48 }} />
           <div style={{ fontSize: 10, color: MUTED, letterSpacing: 3, marginTop: 6 }}>ACEPILOT.AI</div>
@@ -1339,11 +1339,11 @@ export default function Dashboard() {
       </div>
 
       {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100%", overflowY: "auto" }}>
+      <div className="main-col">
         {/* Top bar */}
-        <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: PANEL, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
+        <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: PANEL, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="ace-hamburger" onClick={() => setMobileMenuOpen(o => !o)} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 10px", color: MUTED, cursor: "pointer", fontSize: 16, alignItems: "center" }}>☰</button>
+            <button className="hamburger" onClick={() => setMobileMenuOpen(o => !o)} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 10px", color: MUTED, cursor: "pointer", fontSize: 16 }}>☰</button>
             <div>
               <div style={{ fontSize: 14, color: TEXT, letterSpacing: 2 }}>{navItems.find(n => n.id === nav)?.label.toUpperCase()}</div>
               <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
@@ -1365,8 +1365,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Content — extra bottom padding so chat bar doesn't cover content */}
-        <div style={{ padding: 32, paddingBottom: 56, flex: 1 }}>
+        {/* Content */}
+        <div className="content-area" style={{ padding: 32 }}>
 
           {/* MISSION CONTROL — CLOSER */}
           {nav === "mission" && role === "CLOSER" && (
@@ -1706,10 +1706,11 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div style={{ padding: "12px 32px", borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 44 }}>
+        <div style={{ padding: "12px 32px", borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>ACEPILOT.AI — MISSION CONTROL v0.2</span>
           <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{time?.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour12: false }) ?? "--"} PST</span>
         </div>
+        <ChatPanel role={role} messages={chatMessages} setMessages={setChatMessages} channel={channel} />
       </div>
 
       {/* 1.4 — Closer detail modal */}
@@ -1819,7 +1820,6 @@ export default function Dashboard() {
         )}
       </Modal>
 
-      <ChatPanel role={role} messages={chatMessages} setMessages={setChatMessages} channel={channel} />
     </div>
   );
 }
