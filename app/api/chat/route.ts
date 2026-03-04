@@ -261,7 +261,9 @@ BEHAVIOR RULES:
 - If a lead looks cold, say so plainly.`,
 }
 
-async function fetchRecentThread(): Promise<string> {
+const CLOSER_AGENTS = ['atlas', 'forge', 'ridge', 'crest']
+
+async function fetchRecentThread(agent: string): Promise<string> {
   const gistId = process.env.WORKSPACE_GIST_ID
   const token = process.env.GITHUB_TOKEN
   if (!gistId) return ''
@@ -272,14 +274,24 @@ async function fetchRecentThread(): Promise<string> {
     })
     if (!resp.ok) return ''
     const gist = await resp.json()
-    const messages: Array<{ from: string; content: string; ts: string; sent_by: string }> =
+    const messages: Array<{ from: string; to?: string; content: string; ts: string; sent_by: string }> =
       JSON.parse(gist.files?.['agent_thread.json']?.content || '[]')
     if (!messages.length) return ''
-    const recent = messages.slice(-20)
+
+    // Filter to messages relevant for this agent
+    const relevant = messages.filter(m => {
+      if (agent === 'trinity') return true // trinity sees everything
+      if (agent === 'ace') return m.from === 'ace' || m.to === 'ace' || m.from === 'trinity' || m.to === 'trinity'
+      if (CLOSER_AGENTS.includes(agent)) return m.from === agent || m.to === agent
+      return true
+    })
+
+    const recent = relevant.slice(-20)
     const lines = recent.map(m => {
-      const who = m.from === 'ace' ? 'ACE' : 'TRINITY'
+      const fromLabel = m.from.charAt(0).toUpperCase() + m.from.slice(1)
+      const toLabel = m.to ? m.to.charAt(0).toUpperCase() + m.to.slice(1) : '?'
       const time = m.ts.slice(0, 16).replace('T', ' ')
-      return `[${time}] ${who}: ${m.content}`
+      return `[${time}] ${fromLabel} → ${toLabel}: ${m.content}`
     })
     return '\n\nPILOT CHANNEL — recent messages:\n' + lines.join('\n')
   } catch {
@@ -287,21 +299,33 @@ async function fetchRecentThread(): Promise<string> {
   }
 }
 
+// Hierarchy enforcement: who each agent is allowed to address
+const ALLOWED_RELAY: Record<string, string[]> = {
+  ace:     ['trinity'],
+  trinity: ['ace', 'atlas', 'forge', 'ridge', 'crest'],
+  atlas:   ['trinity'],
+  forge:   ['trinity'],
+  ridge:   ['trinity'],
+  crest:   ['trinity'],
+}
+
 async function autoRelayToThread(agent: string, responseText: string, sentBy: string) {
   const gistId = process.env.WORKSPACE_GIST_ID
   const token = process.env.GITHUB_TOKEN
   if (!gistId || !token) return
 
-  const toTrinityMatch = responseText.match(/\[TO TRINITY\]:\s*([\s\S]+?)(?:\n\n|$)/i)
-  const toAceMatch = responseText.match(/\[TO ACE\]:\s*([\s\S]+?)(?:\n\n|$)/i)
-  const match = agent === 'ace' ? toTrinityMatch : toAceMatch
+  // Match [TO <AGENT>]: pattern
+  const match = responseText.match(/\[TO (ACE|TRINITY|ATLAS|FORGE|RIDGE|CREST)\]:\s*([\s\S]+?)(?:\n\n|$)/i)
   if (!match) return
 
-  const content = match[1].trim()
-  const from = agent === 'ace' ? 'ace' : 'trinity'
+  const to = match[1].toLowerCase()
+  const content = match[2].trim()
+
+  // Enforce hierarchy — ignore unauthorized relay attempts
+  const allowed = ALLOWED_RELAY[agent] ?? []
+  if (!allowed.includes(to)) return
 
   try {
-    // Read current thread
     const getResp = await fetch(`https://api.github.com/gists/${gistId}`, {
       headers: { Authorization: `token ${token}` },
     })
@@ -309,7 +333,7 @@ async function autoRelayToThread(agent: string, responseText: string, sentBy: st
     const gist = await getResp.json()
     const thread: Array<object> = JSON.parse(gist.files?.['agent_thread.json']?.content || '[]')
 
-    thread.push({ id: Date.now().toString(), from, content, ts: new Date().toISOString(), sent_by: sentBy })
+    thread.push({ id: Date.now().toString(), from: agent, to, content, ts: new Date().toISOString(), sent_by: sentBy })
     const trimmed = thread.slice(-200)
 
     await fetch(`https://api.github.com/gists/${gistId}`, {
@@ -328,7 +352,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
   }
 
-  const threadContext = await fetchRecentThread()
+  const threadContext = await fetchRecentThread(agent as string)
   const systemPrompt = (BASE_PROMPTS[agent as string] ?? BASE_PROMPTS.ace) + threadContext
 
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -354,8 +378,8 @@ export async function POST(req: NextRequest) {
   const data = await resp.json()
   const content: string = data.content?.[0]?.text ?? ''
 
-  // Auto-relay if agent addressed the other agent
-  const who = sent_by || (agent === 'ace' ? 'Ron' : 'Taylor')
+  // Auto-relay if agent used a [TO X]: prefix
+  const who = sent_by || agent
   autoRelayToThread(agent as string, content, who) // fire-and-forget
 
   return NextResponse.json({ content })

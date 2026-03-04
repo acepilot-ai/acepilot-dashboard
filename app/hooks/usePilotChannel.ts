@@ -1,9 +1,12 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 
+export type AgentId = "ace" | "trinity" | "atlas" | "forge" | "ridge" | "crest";
+
 export interface ThreadMessage {
   id: string;
-  from: "ace" | "trinity";
+  from: AgentId;
+  to: AgentId;
   content: string;
   ts: string;
   sent_by: string;
@@ -28,11 +31,11 @@ export function usePollingChannel(intervalMs = 15_000) {
     return () => clearInterval(id);
   }, [load, intervalMs]);
 
-  const relay = useCallback(async (from: "ace" | "trinity", content: string, sent_by: string) => {
+  const relay = useCallback(async (from: AgentId, to: AgentId, content: string, sent_by: string) => {
     await fetch("/api/agent-relay", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ from, content, sent_by }),
+      body: JSON.stringify({ from, to, content, sent_by }),
     });
     await load();
   }, [load]);

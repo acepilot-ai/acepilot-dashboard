@@ -4,7 +4,7 @@ import {
   useStats, useGHL, useWorkspace, useClock, relativeTime,
   type StatsCache, type GHLData, type WorkspaceData, type Todo, type FileEntry, type ActivityItem,
 } from "./hooks/useDashboard";
-import { usePollingChannel, type ThreadMessage } from "./hooks/usePilotChannel";
+import { usePollingChannel, type ThreadMessage, type AgentId } from "./hooks/usePilotChannel";
 import AnalyticsSection from "./components/sections/AnalyticsSection";
 import CampaignHealthSection from "./components/sections/CampaignHealthSection";
 import { GOLD, DARK, PANEL, BORDER, TEXT, MUTED, GREEN, RED, BLUE } from "./lib/theme";
@@ -107,7 +107,8 @@ function CloserRow({ name, territory, leads, sends, cold, onClick }: {
 
 function PilotChannel({ role, channel }: { role: string; channel: ReturnType<typeof usePollingChannel> }) {
   const { messages, loading, relay } = channel;
-  const from = role === "SUPER_ADMIN" ? "ace" : "trinity";
+  const from: AgentId = role === "SUPER_ADMIN" ? "ace" : "trinity";
+  const to: AgentId = from === "ace" ? "trinity" : "ace";
   const fromLabel = from === "ace" ? "Ace" : "Trinity";
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -121,7 +122,7 @@ function PilotChannel({ role, channel }: { role: string; channel: ReturnType<typ
     if (!draft.trim() || sending) return;
     setSending(true);
     const sentBy = role === "SUPER_ADMIN" ? "Ron" : "Taylor";
-    await relay(from, draft.trim(), sentBy);
+    await relay(from, to, draft.trim(), sentBy);
     setDraft("");
     setSending(false);
   };
@@ -131,7 +132,7 @@ function PilotChannel({ role, channel }: { role: string; channel: ReturnType<typ
       <div style={{ padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />
-          <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ACE ↔ TRINITY — PILOT CHANNEL</span>
+          <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>PILOT CHANNEL — 6 AGENTS</span>
         </div>
         <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{messages.length} messages</span>
       </div>
@@ -141,19 +142,22 @@ function PilotChannel({ role, channel }: { role: string; channel: ReturnType<typ
         {loading && <div style={{ padding: "20px", color: MUTED, fontSize: 11, fontFamily: "monospace", textAlign: "center" }}>Loading channel...</div>}
         {!loading && messages.length === 0 && (
           <div style={{ padding: "24px 20px", color: MUTED, fontSize: 11, fontFamily: "monospace", textAlign: "center" }}>
-            No messages yet. Ace and Trinity will communicate here.<br />
-            <span style={{ fontSize: 10, opacity: 0.6 }}>Agents auto-relay when they address each other in chat.</span>
+            No messages yet. Agents will communicate here.<br />
+            <span style={{ fontSize: 10, opacity: 0.6 }}>Auto-relay fires when any agent addresses another in chat.</span>
           </div>
         )}
         {messages.map((msg) => {
-          const isAce = msg.from === "ace";
+          const agentColor = msg.from === "ace" ? GOLD : msg.from === "trinity" ? BLUE : GREEN;
+          const fromLabel = msg.from.charAt(0).toUpperCase() + msg.from.slice(1);
+          const toLabel = msg.to ? msg.to.charAt(0).toUpperCase() + msg.to.slice(1) : "?";
           return (
             <div key={msg.id} style={{ display: "flex", gap: 0, padding: "10px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "flex-start" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 100, paddingTop: 2 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: isAce ? GOLD : BLUE, flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: isAce ? GOLD : BLUE, fontFamily: "monospace", letterSpacing: 1, fontWeight: 700 }}>
-                  {isAce ? "ACE" : "TRINITY"}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 140, paddingTop: 2 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: agentColor, flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: agentColor, fontFamily: "monospace", letterSpacing: 1, fontWeight: 700 }}>
+                  {fromLabel.toUpperCase()}
                 </span>
+                <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>→ {toLabel.toUpperCase()}</span>
               </div>
               <div style={{ flex: 1 }}>
                 <span style={{ fontSize: 12, color: TEXT, fontFamily: "monospace", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{msg.content}</span>
@@ -172,7 +176,7 @@ function PilotChannel({ role, channel }: { role: string; channel: ReturnType<typ
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder={`${fromLabel} → ${from === "ace" ? "Trinity" : "Ace"}...`}
+          placeholder={`${fromLabel} → ${from === "ace" ? "Trinity" : "Ace"} (direct relay)...`}
           rows={2}
           disabled={sending}
           style={{ flex: 1, background: DARK, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 12px", color: TEXT, fontSize: 12, fontFamily: "monospace", outline: "none", resize: "none", lineHeight: 1.5 }}
@@ -409,10 +413,10 @@ function ChatPanel({ role, messages, setMessages, channel }: {
     setLoading(false);
   };
 
+  const relayTarget: AgentId = agent === "ace" ? "trinity" : agent === "trinity" ? "ace" : "trinity";
   const relayMessage = async (idx: number, content: string) => {
     setRelaying(idx);
-    const from = agent === "ace" ? "ace" : "trinity";
-    await channel.relay(from, content, sentBy);
+    await channel.relay(agent as AgentId, relayTarget, content, sentBy);
     setRelaying(null);
   };
 
@@ -434,7 +438,7 @@ function ChatPanel({ role, messages, setMessages, channel }: {
                 background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "2px 10px",
                 color: relaying === i ? GOLD : MUTED, fontSize: 9, cursor: "pointer",
                 fontFamily: "monospace", letterSpacing: 1,
-              }}>{relaying === i ? "RELAYING..." : `RELAY → ${agent === "ace" ? "TRINITY" : "ACE"}`}</button>
+              }}>{relaying === i ? "RELAYING..." : `RELAY → ${relayTarget.toUpperCase()}`}</button>
             )}
           </div>
         ))}
@@ -1255,9 +1259,10 @@ export default function Dashboard() {
     channel.messages.forEach(m => {
       if (!seenPilotIds.current.has(m.id)) {
         seenPilotIds.current.add(m.id);
-        const label = m.from === "ace" ? "Ace" : "Trinity";
+        const fromLabel = m.from.charAt(0).toUpperCase() + m.from.slice(1);
+        const toLabel = m.to ? m.to.charAt(0).toUpperCase() + m.to.slice(1) : "?";
         const preview = m.content.length > 80 ? m.content.slice(0, 80) + "..." : m.content;
-        addNotification({ type: "PILOT", msg: `${label}: "${preview}"`, navTarget: "workspace" });
+        addNotification({ type: "PILOT", msg: `${fromLabel} → ${toLabel}: "${preview}"`, navTarget: "workspace" });
       }
     });
   }, [channel.messages, addNotification]);
@@ -1634,7 +1639,7 @@ export default function Dashboard() {
           {nav === "agents" && role !== "CLOSER" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-                <StatCard label="Total Agents" value="2" sub="Ace · Trinity" pulse />
+                <StatCard label="Total Agents" value="6" sub="Ace · Trinity · Atlas · Forge · Ridge · Crest" pulse />
                 <StatCard label="Cron Scripts" value={Object.keys(SCHEDULES).length} sub="Active scheduled jobs" />
                 <StatCard label="Running Now" value={runningCount} sub="Live agents" color={GREEN} />
                 <StatCard label="Errors Today" value={agentRows.filter(a => a.status === "error").length} sub={agentRows.filter(a => a.status === "error").length === 0 ? "All clear" : "Check logs"} color={agentRows.filter(a => a.status === "error").length > 0 ? RED : GREEN} />
@@ -1642,7 +1647,7 @@ export default function Dashboard() {
               <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
                 <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ALL AGENTS</span>
-                  <span style={{ fontSize: 10, color: MUTED }}>ACE ↔ TRINITY via PILOT protocol</span>
+                  <span style={{ fontSize: 10, color: MUTED }}>6 agents connected via PILOT protocol</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 140px 140px 80px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
                   {["SCRIPT", "STATUS", "LAST RUN", "NEXT RUN", "TODAY"].map((h, i) => (
