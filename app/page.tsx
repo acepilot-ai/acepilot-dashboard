@@ -1180,6 +1180,7 @@ export default function Dashboard() {
   const [pipelineTab, setPipelineTab]           = useState<"closers" | "contacts" | "opportunities">("closers");
   const [analyticsTab, setAnalyticsTab]         = useState<"volume" | "trades" | "senders" | "territory">("volume");
   const [selectedCloser, setSelectedCloser]     = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
+  const [dateStr, setDateStr]                   = useState<string>("");
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
       ...n,
@@ -1197,6 +1198,7 @@ export default function Dashboard() {
   useEffect(() => {
     setRole(getCookie("ace_role") || "SUPER_ADMIN");
     setSeatId(getCookie("ace_seat") || "");
+    setDateStr(new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }));
   }, []);
 
   // Resolve seat info for scoped views
@@ -1341,7 +1343,7 @@ export default function Dashboard() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div>
               <div style={{ fontSize: 14, color: TEXT, letterSpacing: 2 }}>{navItems.find(n => n.id === nav)?.label.toUpperCase()}</div>
-              <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+              <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{dateStr}</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
