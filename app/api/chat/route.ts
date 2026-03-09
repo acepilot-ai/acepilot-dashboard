@@ -263,6 +263,40 @@ BEHAVIOR RULES:
 
 const CLOSER_AGENTS = ['atlas', 'forge', 'ridge', 'crest']
 
+async function fetchStats(): Promise<string> {
+  try {
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000'
+    const resp = await fetch(`${baseUrl}/api/stats`, {
+      cache: 'no-store',
+    })
+    if (!resp.ok) return ''
+    const data = await resp.json()
+
+    // Format stats context for Claude
+    const pds = data.pds || {}
+    const stephie = data.stephie || {}
+    const replies = data.replies || {}
+    const totalContacted = (pds.total || 0) + (stephie.total || 0)
+    const todaysSends = (pds.today || 0) + (stephie.today || 0)
+    const replyRate = totalContacted > 0 ? ((replies.total || 0) / totalContacted * 100).toFixed(1) : '0'
+
+    const lines = [
+      '\n\nCURRENT ORG STATS:',
+      `Total Contacted (all time): ${totalContacted.toLocaleString()} (PDS: ${(pds.total || 0).toLocaleString()}, Stephie: ${(stephie.total || 0).toLocaleString()})`,
+      `Today's Sends: ${todaysSends} (PDS: ${pds.today || 0}, Stephie: ${stephie.today || 0})`,
+      `Total Replies: ${(replies.total || 0)}`,
+      `Reply Rate: ${replyRate}%`,
+      `PDS By Outcome: Forms ${pds.by_outcome?.form || 0}, Emails ${pds.by_outcome?.email || 0}, Errors ${pds.by_outcome?.error || 0}`,
+      `Stephie By Outcome: Forms ${stephie.by_outcome?.form || 0}, Emails ${stephie.by_outcome?.email || 0}, Errors ${stephie.by_outcome?.error || 0}`,
+    ]
+    return lines.join('\n')
+  } catch {
+    return ''
+  }
+}
+
 async function fetchRecentThread(agent: string): Promise<string> {
   const gistId = process.env.WORKSPACE_GIST_ID
   const token = process.env.GITHUB_TOKEN
@@ -352,8 +386,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
   }
 
-  const threadContext = await fetchRecentThread(agent as string)
-  const systemPrompt = (BASE_PROMPTS[agent as string] ?? BASE_PROMPTS.ace) + threadContext
+  const [threadContext, statsContext] = await Promise.all([
+    fetchRecentThread(agent as string),
+    fetchStats(),
+  ])
+  const systemPrompt = (BASE_PROMPTS[agent as string] ?? BASE_PROMPTS.ace) + statsContext + threadContext
 
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

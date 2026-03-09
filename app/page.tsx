@@ -7,6 +7,9 @@ import {
 import { usePollingChannel, type ThreadMessage, type AgentId } from "./hooks/usePilotChannel";
 import AnalyticsSection from "./components/sections/AnalyticsSection";
 import CampaignHealthSection from "./components/sections/CampaignHealthSection";
+import MissionSection from "./components/sections/MissionSection";
+import PipelineSection from "./components/sections/PipelineSection";
+import AgentsSection from "./components/sections/AgentsSection";
 import { GOLD, DARK, PANEL, BORDER, TEXT, MUTED, GREEN, RED, BLUE } from "./lib/theme";
 
 type NavItem = "mission" | "pipeline" | "analytics" | "campaigns" | "outreach" | "agents" | "workspace" | "settings";
@@ -22,12 +25,12 @@ interface Notification {
 
 // Seat → human + agent info. Single source of truth for role-scoped views.
 const SEAT_MAP: Record<string, { name: string; senderName: string; ghlId: string; agentHandle: string; agentName: string; territory: string }> = {
-  seat_ron:    { name: "Ron Parent",     senderName: "Ron Parent",     ghlId: "",                       agentHandle: "ace",     agentName: "Ace",     territory: "Mixed"                 },
-  seat_taylor: { name: "Taylor Posey",   senderName: "Taylor Posey",   ghlId: "ma3kHGuqV7wPGuzRymB3",  agentHandle: "trinity", agentName: "Trinity", territory: "LA"                    },
-  seat_joel:   { name: "Joel Davis",     senderName: "Joel Davis",     ghlId: "ROTliRMFnbHzsAQOluMM",  agentHandle: "atlas",   agentName: "Atlas",   territory: "Coachella Valley (760)" },
-  seat_frank:  { name: "Frank Leon",     senderName: "Frank Leon",     ghlId: "Owc8Ufm2W1dkxrwAtTpq",  agentHandle: "forge",   agentName: "Forge",   territory: "LA County"             },
-  seat_mickey: { name: "Mickey Parson",  senderName: "Mickey Parson",  ghlId: "neMkuaDwGNWQ0WAIRv9B",  agentHandle: "ridge",   agentName: "Ridge",   territory: "LA / Valley"           },
-  seat_armen:  { name: "Armen Pogosian", senderName: "Armen Pogosian", ghlId: "hLzXkVl8tladQpgHOEwQ",  agentHandle: "crest",   agentName: "Crest",   territory: "SFV / Desert"          },
+  seat_ron: { name: "Ron Parent", senderName: "Ron Parent", ghlId: "", agentHandle: "ace", agentName: "Ace", territory: "Mixed" },
+  seat_taylor: { name: "Taylor Posey", senderName: "Taylor Posey", ghlId: "ma3kHGuqV7wPGuzRymB3", agentHandle: "trinity", agentName: "Trinity", territory: "LA" },
+  seat_joel: { name: "Joel Davis", senderName: "Joel Davis", ghlId: "ROTliRMFnbHzsAQOluMM", agentHandle: "atlas", agentName: "Atlas", territory: "Coachella Valley (760)" },
+  seat_frank: { name: "Frank Leon", senderName: "Frank Leon", ghlId: "Owc8Ufm2W1dkxrwAtTpq", agentHandle: "forge", agentName: "Forge", territory: "LA County" },
+  seat_mickey: { name: "Mickey Parson", senderName: "Mickey Parson", ghlId: "neMkuaDwGNWQ0WAIRv9B", agentHandle: "ridge", agentName: "Ridge", territory: "LA / Valley" },
+  seat_armen: { name: "Armen Pogosian", senderName: "Armen Pogosian", ghlId: "hLzXkVl8tladQpgHOEwQ", agentHandle: "crest", agentName: "Crest", territory: "SFV / Desert" },
 };
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -36,9 +39,19 @@ function StatCard({ label, value, sub, color, pulse, onClick }: {
   label: string; value: string | number; sub?: string; color?: string; pulse?: boolean; onClick?: () => void;
 }) {
   return (
-    <div onClick={onClick} style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px", display: "flex", flexDirection: "column", gap: 6, position: "relative", overflow: "hidden", cursor: onClick ? "pointer" : "default", transition: "border-color 0.15s" }} onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.borderColor = GOLD; }} onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = BORDER; }}>
+    <div onClick={onClick} style={{
+      background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px",
+      display: "flex", flexDirection: "column", gap: 6, position: "relative", overflow: "hidden",
+      cursor: onClick ? "pointer" : "default",
+      transition: "border-color 0.25s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease",
+    }}
+      onMouseEnter={e => { if (onClick) { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = GOLD; el.style.boxShadow = `0 4px 24px rgba(0,0,0,0.3), 0 0 0 1px ${GOLD}20`; } }}
+      onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = BORDER; el.style.boxShadow = "none"; el.style.transform = "scale(1)"; }}
+      onMouseDown={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.transform = "scale(0.97)"; }}
+      onMouseUp={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.transform = "scale(1)"; }}
+    >
       {pulse && <span style={{ position: "absolute", top: 14, right: 14, width: 8, height: 8, borderRadius: "50%", background: GREEN, boxShadow: `0 0 8px ${GREEN}`, animation: "pulse 2s infinite" }} />}
-      {onClick && <span style={{ position: "absolute", bottom: 10, right: 14, fontSize: 9, color: MUTED, fontFamily: "monospace", letterSpacing: 1 }}>DRILL DOWN ›</span>}
+      {onClick && <span style={{ position: "absolute", bottom: 10, right: 14, fontSize: 9, color: MUTED, fontFamily: "monospace", letterSpacing: 1, transition: "color 0.2s" }}>DRILL DOWN ›</span>}
       <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED, textTransform: "uppercase", fontFamily: "monospace" }}>{label}</span>
       <span style={{ fontSize: 32, fontWeight: 700, color: color || TEXT, fontFamily: "'Courier New', monospace", lineHeight: 1 }}>{value}</span>
       {sub && <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{sub}</span>}
@@ -49,19 +62,50 @@ function StatCard({ label, value, sub, color, pulse, onClick }: {
 // ── Modal (1.3 base) ──────────────────────────────────────────────────────────
 
 function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
+
   useEffect(() => {
+    if (open) {
+      setMounted(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+    } else {
+      setVisible(false);
+      const timer = setTimeout(() => setMounted(false), 350);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!mounted) return;
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", h);
     return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-  if (!open) return null;
+  }, [mounted, onClose]);
+
+  if (!mounted) return null;
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(8,8,16,0.8)" }} />
-      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 401, width: "min(560px, 95vw)", maxHeight: "80vh", background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 16, display: "flex", flexDirection: "column", animation: "fadeIn 0.15s ease" }}>
+      <div onClick={onClose} style={{
+        position: "fixed", inset: 0, zIndex: 400,
+        background: "rgba(6,6,14,0.85)",
+        backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+        opacity: visible ? 1 : 0,
+        transition: "opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      }} />
+      <div style={{
+        position: "fixed", top: "50%", left: "50%", zIndex: 401,
+        width: "min(560px, 95vw)", maxHeight: "80vh",
+        background: PANEL, border: `1px solid ${visible ? GOLD + "40" : BORDER}`,
+        borderRadius: 16, display: "flex", flexDirection: "column",
+        boxShadow: visible ? `0 24px 80px rgba(0,0,0,0.6), 0 0 1px ${GOLD}30` : "none",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translate(-50%,-50%) scale(1) translateY(0)" : "translate(-50%,-50%) scale(0.92) translateY(16px)",
+        transition: "opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s ease, box-shadow 0.35s ease",
+      }}>
         <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED, fontFamily: "monospace" }}>{title}</span>
-          <button onClick={onClose} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "4px 12px", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: "monospace" }}>ESC</button>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "4px 12px", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: "monospace", transition: "color 0.2s, border-color 0.2s" }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = TEXT; (e.currentTarget as HTMLButtonElement).style.borderColor = MUTED; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = MUTED; (e.currentTarget as HTMLButtonElement).style.borderColor = BORDER; }}>ESC</button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>{children}</div>
       </div>
@@ -69,21 +113,33 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
   );
 }
 
-function AgentRow({ name, status, lastRun, nextRun, todayCount, onClick }: {
-  name: string; status: "running" | "idle" | "error"; lastRun: string; nextRun: string; todayCount: number; onClick?: () => void;
+function AgentRow({ name, status, lastRun, nextRun, todayCount, onClick, compact }: {
+  name: string; status: "running" | "idle" | "error"; lastRun: string; nextRun: string; todayCount: number; onClick?: () => void; compact?: boolean;
 }) {
   const statusColor = status === "running" ? GREEN : status === "error" ? RED : MUTED;
+  const statusGlow = status === "running" ? `0 0 6px ${GREEN}` : status === "error" ? `0 0 6px ${RED}` : "none";
+  if (compact) {
+    return (
+      <div onClick={onClick} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px 60px", padding: "12px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "center", gap: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.15s" }} onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}>
+        <span style={{ color: TEXT, fontFamily: "monospace", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: statusColor, boxShadow: statusGlow, flexShrink: 0 }} />
+          <span style={{ fontSize: 10, color: statusColor, textTransform: "uppercase", letterSpacing: 1, fontFamily: "monospace", fontWeight: 600 }}>{status}</span>
+        </span>
+        <span style={{ fontSize: 13, color: todayCount > 0 ? GOLD : MUTED, fontFamily: "monospace", textAlign: "right", fontWeight: 700 }}>{todayCount}</span>
+      </div>
+    );
+  }
   return (
-    <div onClick={onClick} style={{ display: "grid", gridTemplateColumns: "1fr 100px 140px 140px 80px", padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "center", gap: 12, cursor: onClick ? "pointer" : "default", transition: "background 0.15s" }} onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}>
-      <span style={{ color: TEXT, fontFamily: "monospace", fontSize: 13 }}>{name}</span>
+    <div onClick={onClick} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) 100px 120px 120px 70px", padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "center", gap: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.15s" }} onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}>
+      <span style={{ color: TEXT, fontFamily: "monospace", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: statusColor, boxShadow: status === "running" ? `0 0 6px ${GREEN}` : "none" }} />
-        <span style={{ fontSize: 11, color: statusColor, textTransform: "uppercase", letterSpacing: 1, fontFamily: "monospace" }}>{status}</span>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: statusColor, boxShadow: statusGlow, flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: statusColor, textTransform: "uppercase", letterSpacing: 1, fontFamily: "monospace", fontWeight: 600 }}>{status}</span>
       </span>
       <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{lastRun}</span>
       <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{nextRun}</span>
-      <span style={{ fontSize: 13, color: GOLD, fontFamily: "monospace", textAlign: "right" }}>{todayCount}</span>
-      {onClick && <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", textAlign: "right", gridColumn: "6" }}>›</span>}
+      <span style={{ fontSize: 13, color: todayCount > 0 ? GOLD : MUTED, fontFamily: "monospace", textAlign: "right", fontWeight: 700 }}>{todayCount}</span>
     </div>
   );
 }
@@ -352,7 +408,7 @@ function WorkspaceSection({ role, seatInfo, chatMessages, channel }: {
           <div style={{ fontSize: 11, letterSpacing: 2, color: MUTED, marginBottom: 20 }}>EXPORT CHAT THREAD TO FILES</div>
           <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
             <input value={exportName} onChange={e => setExportName(e.target.value)}
-              placeholder={`chat-export-${new Date().toISOString().slice(0, 10)}.txt`}
+              placeholder="chat-export.txt"
               style={{ flex: 1, background: DARK, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 12px", color: TEXT, fontSize: 12, fontFamily: "monospace", outline: "none" }} />
             <button onClick={exportChat} style={{ background: GOLD, border: "none", borderRadius: 6, padding: "8px 18px", color: DARK, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "monospace", letterSpacing: 1 }}>EXPORT</button>
           </div>
@@ -377,7 +433,8 @@ function ChatPanel({ role, messages, setMessages, channel }: {
   setMessages: React.Dispatch<React.SetStateAction<{ role: "user" | "assistant"; content: string }[]>>;
   channel: ReturnType<typeof usePollingChannel>;
 }) {
-  const seatId = getCookie("ace_seat");
+  const [seatId, setChatSeatId] = useState("");
+  useEffect(() => { setChatSeatId(getCookie("ace_seat") || ""); }, []);
   const seatInfo = SEAT_MAP[seatId] || SEAT_MAP.seat_ron;
   const agent = role === "ADMIN" ? "trinity" : role === "CLOSER" ? seatInfo.agentHandle : "ace";
   const agentLabel = role === "ADMIN" ? "Trinity" : role === "CLOSER" ? seatInfo.agentName : "Ace";
@@ -463,19 +520,48 @@ function getCookie(name: string): string {
 function SlidePanel({ open, onClose, title, children }: {
   open: boolean; onClose: () => void; title: string; children: React.ReactNode;
 }) {
+  const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
+
   useEffect(() => {
+    if (open) {
+      setMounted(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+    } else {
+      setVisible(false);
+      const timer = setTimeout(() => setMounted(false), 350);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!mounted) return;
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", h);
     return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-  if (!open) return null;
+  }, [mounted, onClose]);
+
+  if (!mounted) return null;
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(8,8,16,0.7)" }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, zIndex: 301, background: PANEL, borderLeft: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", animation: "slideInRight 0.2s ease" }}>
+      <div onClick={onClose} style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        background: "rgba(6,6,14,0.75)",
+        backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+        opacity: visible ? 1 : 0,
+        transition: "opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      }} />
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, width: "min(420px, 90vw)", zIndex: 301,
+        background: PANEL, borderLeft: `1px solid ${BORDER}`,
+        display: "flex", flexDirection: "column",
+        boxShadow: visible ? "0 0 60px rgba(0,0,0,0.5)" : "none",
+        transform: visible ? "translateX(0)" : "translateX(100%)",
+        transition: "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease",
+      }}>
         <div style={{ padding: "18px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>{title}</span>
-          <button onClick={onClose} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "4px 12px", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: "monospace" }}>ESC</button>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "4px 12px", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: "monospace", transition: "color 0.2s, border-color 0.2s" }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = TEXT; (e.currentTarget as HTMLButtonElement).style.borderColor = MUTED; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = MUTED; (e.currentTarget as HTMLButtonElement).style.borderColor = BORDER; }}>ESC</button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>{children}</div>
       </div>
@@ -489,7 +575,7 @@ const GHL_LOCATION = "yQEQSa2RZOkQaDlCAfit";
 
 function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => void }) {
   const [suppressing, setSuppressing] = useState(false);
-  const [suppressed, setSuppressed]   = useState(false);
+  const [suppressed, setSuppressed] = useState(false);
 
   const domain = item.website
     ? item.website.replace(/^https?:\/\//, "").split("/")[0].replace(/^www\./, "").split("?")[0]
@@ -514,11 +600,11 @@ function ActivityDetail({ item, onClose }: { item: ActivityItem; onClose: () => 
   };
 
   const details = [
-    { label: "OUTCOME",   value: item.outcome || item.classification || item.type },
-    { label: "SENDER",    value: item.sender || "—" },
+    { label: "OUTCOME", value: item.outcome || item.classification || item.type },
+    { label: "SENDER", value: item.sender || "—" },
     { label: "TERRITORY", value: item.territory || "—" },
-    { label: "TRADE",     value: item.trade || "—" },
-    { label: "TIME",      value: item.ts },
+    { label: "TRADE", value: item.trade || "—" },
+    { label: "TIME", value: item.ts },
   ];
 
   // Determine if this item has enriched detail (local mode) or just msg (Gist mode)
@@ -620,9 +706,9 @@ function CloserDetail({ closer, activity }: {
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         {[
-          { label: "GHL LEADS",  value: closer.leads, color: GREEN },
-          { label: "SENDS",      value: closer.sends, color: BLUE },
-          { label: "COLD DEALS", value: closer.cold,  color: closer.cold > 0 ? RED : MUTED },
+          { label: "GHL LEADS", value: closer.leads, color: GREEN },
+          { label: "SENDS", value: closer.sends, color: BLUE },
+          { label: "COLD DEALS", value: closer.cold, color: closer.cold > 0 ? RED : MUTED },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ background: DARK, borderRadius: 8, padding: 14 }}>
             <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>{label}</div>
@@ -678,11 +764,11 @@ interface ContactRecord {
 function ContactDetail({ contact }: { contact: ContactRecord }) {
   const ghlUrl = `https://app.precisiondatastrategies.com/location/${GHL_LOCATION}/contacts/detail/${contact.id}`;
   const fields = [
-    { label: "PHONE",       value: contact.phone },
-    { label: "EMAIL",       value: contact.email },
-    { label: "COMPANY",     value: contact.companyName },
-    { label: "ADDRESS",     value: contact.address },
-    { label: "ADDED",       value: contact.dateAdded ? new Date(contact.dateAdded).toLocaleDateString() : "" },
+    { label: "PHONE", value: contact.phone },
+    { label: "EMAIL", value: contact.email },
+    { label: "COMPANY", value: contact.companyName },
+    { label: "ADDRESS", value: contact.address },
+    { label: "ADDED", value: contact.dateAdded ? new Date(contact.dateAdded).toLocaleDateString() : "" },
     { label: "LAST ACTIVE", value: contact.lastActivity ? new Date(contact.lastActivity).toLocaleDateString() : "" },
   ].filter(f => f.value);
 
@@ -723,12 +809,12 @@ function ContactsPanel({ pipelineTab }: { pipelineTab: string }) {
   const [closerFilter, setCloserFilter] = useState("");
 
   const CLOSER_OPTIONS = [
-    { name: "All Closers",    id: "" },
-    { name: "Joel Davis",     id: "ROTliRMFnbHzsAQOluMM" },
-    { name: "Frank Leon",     id: "Owc8Ufm2W1dkxrwAtTpq" },
-    { name: "Mickey Parson",  id: "neMkuaDwGNWQ0WAIRv9B" },
+    { name: "All Closers", id: "" },
+    { name: "Joel Davis", id: "ROTliRMFnbHzsAQOluMM" },
+    { name: "Frank Leon", id: "Owc8Ufm2W1dkxrwAtTpq" },
+    { name: "Mickey Parson", id: "neMkuaDwGNWQ0WAIRv9B" },
     { name: "Armen Pogosian", id: "hLzXkVl8tladQpgHOEwQ" },
-    { name: "Taylor Posey",   id: "ma3kHGuqV7wPGuzRymB3" },
+    { name: "Taylor Posey", id: "ma3kHGuqV7wPGuzRymB3" },
   ];
 
   const load = useCallback(async (p: number, cid: string) => {
@@ -831,15 +917,15 @@ function OpportunityDetail({ opp }: { opp: OpportunityRecord }) {
 
   const stageColor = opp.status === "won" ? GREEN : opp.status === "lost" ? RED : GOLD;
   const fields = [
-    { label: "STAGE",        value: opp.stageName },
-    { label: "STATUS",       value: opp.status.toUpperCase() },
-    { label: "VALUE",        value: opp.monetaryValue > 0 ? `$${opp.monetaryValue.toLocaleString()}` : "—" },
-    { label: "ASSIGNED TO",  value: opp.assignedName },
-    { label: "CONTACT",      value: opp.contactName },
-    { label: "EMAIL",        value: opp.contactEmail },
-    { label: "PHONE",        value: opp.contactPhone },
-    { label: "CREATED",      value: opp.createdAt ? new Date(opp.createdAt).toLocaleDateString() : "—" },
-    { label: "LAST UPDATED", value: opp.updatedAt  ? new Date(opp.updatedAt).toLocaleDateString()  : "—" },
+    { label: "STAGE", value: opp.stageName },
+    { label: "STATUS", value: opp.status.toUpperCase() },
+    { label: "VALUE", value: opp.monetaryValue > 0 ? `$${opp.monetaryValue.toLocaleString()}` : "—" },
+    { label: "ASSIGNED TO", value: opp.assignedName },
+    { label: "CONTACT", value: opp.contactName },
+    { label: "EMAIL", value: opp.contactEmail },
+    { label: "PHONE", value: opp.contactPhone },
+    { label: "CREATED", value: opp.createdAt ? new Date(opp.createdAt).toLocaleDateString() : "—" },
+    { label: "LAST UPDATED", value: opp.updatedAt ? new Date(opp.updatedAt).toLocaleDateString() : "—" },
     { label: "LAST ACTIVITY", value: opp.lastActivityType || "—" },
   ].filter(f => f.value && f.value !== "—");
 
@@ -991,9 +1077,9 @@ function AgentLogPanel({ script }: { script: string }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {[
-            { label: "LAST RUN",  value: data?.last_modified ? relativeTime(new Date(data.last_modified)) : "—" },
-            { label: "LOG SIZE",  value: data?.file_size ? `${(data.file_size / 1024).toFixed(1)} KB` : "—" },
-            { label: "LOG FILE",  value: data?.log_path || "none" },
+            { label: "LAST RUN", value: data?.last_modified ? relativeTime(new Date(data.last_modified)) : "—" },
+            { label: "LOG SIZE", value: data?.file_size ? `${(data.file_size / 1024).toFixed(1)} KB` : "—" },
+            { label: "LOG FILE", value: data?.log_path || "none" },
           ].map(({ label, value }) => (
             <div key={label} style={{ padding: "8px 10px", background: PANEL, borderRadius: 6 }}>
               <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 3 }}>{label}</div>
@@ -1015,9 +1101,9 @@ function AgentLogPanel({ script }: { script: string }) {
           ) : data?.lines.length ? (
             data.lines.map((line, i) => {
               const isError = /error|exception|traceback|critical/i.test(line);
-              const isWarn  = /warn|warning/i.test(line);
-              const isOk    = /success|done|submitted|email_sent|ok\b/i.test(line);
-              const color   = isError ? RED : isWarn ? GOLD : isOk ? GREEN : "#8888aa";
+              const isWarn = /warn|warning/i.test(line);
+              const isOk = /success|done|submitted|email_sent|ok\b/i.test(line);
+              const color = isError ? RED : isWarn ? GOLD : isOk ? GREEN : "#8888aa";
               return (
                 <div key={i} style={{ fontFamily: "monospace", fontSize: 10, color, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
                   {line || " "}
@@ -1136,16 +1222,16 @@ const LOG_PATHS_HAVE = new Set([
 
 function buildAgentRows(agentsData: StatsCache["agents"] | undefined) {
   const base = [
-    { name: "ace",                     nextRun: "continuous"       },
-    { name: "trinity",                 nextRun: "on handoff"       },
-    { name: "outreach.py",             nextRun: "Tomorrow 08:05"   },
-    { name: "reply-monitor.py",        nextRun: "next 30min"       },
-    { name: "stephie-outreach.py",     nextRun: "Tomorrow 18:00"   },
-    { name: "morning-report.py",       nextRun: "Tomorrow 07:55"   },
-    { name: "pipeline-monitor.py",     nextRun: "Tomorrow 09:00"   },
-    { name: "tripwire-monitor.py",     nextRun: "next 15min"       },
-    { name: "taylor-email-cleanup.py", nextRun: "Tomorrow 06:00"   },
-    { name: "nightly-review.py",       nextRun: "Tomorrow 02:00"   },
+    { name: "ace", nextRun: "continuous" },
+    { name: "trinity", nextRun: "on handoff" },
+    { name: "outreach.py", nextRun: "Tomorrow 08:05" },
+    { name: "reply-monitor.py", nextRun: "next 30min" },
+    { name: "stephie-outreach.py", nextRun: "Tomorrow 18:00" },
+    { name: "morning-report.py", nextRun: "Tomorrow 07:55" },
+    { name: "pipeline-monitor.py", nextRun: "Tomorrow 09:00" },
+    { name: "tripwire-monitor.py", nextRun: "next 15min" },
+    { name: "taylor-email-cleanup.py", nextRun: "Tomorrow 06:00" },
+    { name: "nightly-review.py", nextRun: "Tomorrow 02:00" },
   ];
 
   return base.map(b => {
@@ -1172,15 +1258,15 @@ export default function Dashboard() {
   const [role, setRole] = useState<string>("SUPER_ADMIN");
   const [seatId, setSeatId] = useState<string>("");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
-  const [notifications, setNotifications]     = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
-  const [activityFilter, setActivityFilter]     = useState({ sender: "", trade: "", eventType: "" });
-  const [selectedAgent, setSelectedAgent]       = useState<string | null>(null);
-  const [drillDown, setDrillDown]               = useState<string | null>(null);
-  const [pipelineTab, setPipelineTab]           = useState<"closers" | "contacts" | "opportunities">("closers");
-  const [analyticsTab, setAnalyticsTab]         = useState<"volume" | "trades" | "senders" | "territory">("volume");
-  const [selectedCloser, setSelectedCloser]     = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
-  const [dateStr, setDateStr]                   = useState<string>("");
+  const [activityFilter, setActivityFilter] = useState({ sender: "", trade: "", eventType: "" });
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [drillDown, setDrillDown] = useState<string | null>(null);
+  const [pipelineTab, setPipelineTab] = useState<"closers" | "contacts" | "opportunities">("closers");
+  const [analyticsTab, setAnalyticsTab] = useState<"volume" | "trades" | "senders" | "territory">("volume");
+  const [selectedCloser, setSelectedCloser] = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
+  const [dateStr, setDateStr] = useState<string>("");
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
     setNotifications(prev => [{
       ...n,
@@ -1205,14 +1291,14 @@ export default function Dashboard() {
   const seatInfo = SEAT_MAP[seatId] || SEAT_MAP.seat_ron;
 
   const allNavItems: { id: NavItem; label: string; roles: string[] }[] = [
-    { id: "mission",   label: "Mission Control", roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
-    { id: "pipeline",  label: "Pipeline",        roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
-    { id: "analytics", label: "Analytics",        roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "campaigns", label: "Campaign Health",  roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "outreach",  label: "Outreach",         roles: ["SUPER_ADMIN"] },
-    { id: "agents",    label: "Agents",          roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
-    { id: "workspace", label: "Workspace",       roles: ["SUPER_ADMIN", "ADMIN", "CLOSER"] },
-    { id: "settings",  label: "Settings",        roles: ["SUPER_ADMIN"] },
+    { id: "mission", label: "Mission Control", roles: ["SUPER_ADMIN", "ADMIN", "CLOSER", "OWNER"] },
+    { id: "pipeline", label: "Pipeline", roles: ["SUPER_ADMIN", "ADMIN", "CLOSER", "OWNER"] },
+    { id: "analytics", label: "Analytics", roles: ["SUPER_ADMIN", "ADMIN", "OWNER"] },
+    { id: "campaigns", label: "Campaign Health", roles: ["SUPER_ADMIN", "ADMIN", "OWNER"] },
+    { id: "outreach", label: "Outreach", roles: ["SUPER_ADMIN", "OWNER"] },
+    { id: "agents", label: "Agents", roles: ["SUPER_ADMIN", "ADMIN", "CLOSER", "OWNER"] },
+    { id: "workspace", label: "Workspace", roles: ["SUPER_ADMIN", "ADMIN", "CLOSER", "OWNER"] },
+    { id: "settings", label: "Settings", roles: ["SUPER_ADMIN", "OWNER"] },
   ];
   const navItems = allNavItems.filter(n => n.roles.includes(role));
 
@@ -1229,12 +1315,12 @@ export default function Dashboard() {
 
   // Activity filter derivations
   const filteredActivity = activity.filter(a =>
-    (!activityFilter.sender    || a.sender === activityFilter.sender) &&
-    (!activityFilter.trade     || a.trade  === activityFilter.trade) &&
-    (!activityFilter.eventType || a.type   === activityFilter.eventType)
+    (!activityFilter.sender || a.sender === activityFilter.sender) &&
+    (!activityFilter.trade || a.trade === activityFilter.trade) &&
+    (!activityFilter.eventType || a.type === activityFilter.eventType)
   );
-  const activitySenders   = [...new Set(activity.map(a => a.sender).filter(Boolean))] as string[];
-  const activityTrades    = [...new Set(activity.map(a => a.trade).filter(Boolean))]  as string[];
+  const activitySenders = [...new Set(activity.map(a => a.sender).filter(Boolean))] as string[];
+  const activityTrades = [...new Set(activity.map(a => a.trade).filter(Boolean))] as string[];
 
   // ── Notification watchers ─────────────────────────────────────────────────────
   const interestedCount = replies?.by_classification?.["INTERESTED"] ?? 0;
@@ -1290,11 +1376,11 @@ export default function Dashboard() {
   // GHL derived
   const ghlData: GHLData | null = ghl;
   const closers = ghlData?.closers ?? [
-    { name: "Joel Davis",     id: "", territory: "Coachella Valley (760)", leads: 0, sends: 0, cold: 0 },
-    { name: "Frank Leon",     id: "", territory: "LA County",              leads: 0, sends: 0, cold: 0 },
-    { name: "Mickey Parson",  id: "", territory: "LA / Valley",            leads: 0, sends: 0, cold: 0 },
-    { name: "Armen Pogosian", id: "", territory: "SFV / Desert",           leads: 0, sends: 0, cold: 0 },
-    { name: "Taylor Posey",   id: "", territory: "LA / Seattle",           leads: 0, sends: 0, cold: 0 },
+    { name: "Joel Davis", id: "", territory: "Coachella Valley (760)", leads: 0, sends: 0, cold: 0 },
+    { name: "Frank Leon", id: "", territory: "LA County", leads: 0, sends: 0, cold: 0 },
+    { name: "Mickey Parson", id: "", territory: "LA / Valley", leads: 0, sends: 0, cold: 0 },
+    { name: "Armen Pogosian", id: "", territory: "SFV / Desert", leads: 0, sends: 0, cold: 0 },
+    { name: "Taylor Posey", id: "", territory: "LA / Seattle", leads: 0, sends: 0, cold: 0 },
   ];
 
   return (
@@ -1316,7 +1402,22 @@ export default function Dashboard() {
         </div>
         <nav style={{ padding: "20px 0", flex: 1 }}>
           {navItems.map(item => (
-            <button key={item.id} onClick={() => setNav(item.id)} style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 24px", background: "none", border: "none", cursor: "pointer", fontSize: 12, letterSpacing: 1, color: nav === item.id ? GOLD : MUTED, borderLeft: nav === item.id ? `2px solid ${GOLD}` : "2px solid transparent", transition: "all 0.15s" }}>{item.label.toUpperCase()}</button>
+            <button
+              key={item.id}
+              onClick={() => setNav(item.id)}
+              onMouseEnter={e => { if (nav !== item.id) { (e.currentTarget as HTMLButtonElement).style.background = `rgba(201, 168, 76, 0.1)`; (e.currentTarget as HTMLButtonElement).style.color = TEXT; } }}
+              onMouseLeave={e => { if (nav !== item.id) { (e.currentTarget as HTMLButtonElement).style.background = "none"; (e.currentTarget as HTMLButtonElement).style.color = "#9999B0"; } }}
+              style={{
+                display: "block", width: "100%", textAlign: "left", padding: "12px 24px",
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 12, letterSpacing: 1, fontWeight: nav === item.id ? 600 : 500,
+                color: nav === item.id ? GOLD : "#9999B0",
+                borderLeft: nav === item.id ? `3px solid ${GOLD}` : "3px solid transparent",
+                transition: "all 0.15s", lineHeight: 1.4
+              }}
+            >
+              {item.label.toUpperCase()}
+            </button>
           ))}
         </nav>
         <div style={{ padding: "16px 24px", borderTop: `1px solid ${BORDER}` }}>
@@ -1366,181 +1467,44 @@ export default function Dashboard() {
         <div className="content-area">
 
           {/* MISSION CONTROL — CLOSER */}
-          {nav === "mission" && role === "CLOSER" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-              <div className="stat-grid-4">
-                <StatCard label="My Sends Today" value={pds?.by_sender[seatInfo.senderName]?.today ?? 0} sub={seatInfo.territory} color={GOLD} pulse />
-                <StatCard label="My Sends All Time" value={pds?.by_sender[seatInfo.senderName]?.total ?? 0} sub="All time outreach" />
-                <StatCard label="Territory" value="ACTIVE" sub={seatInfo.territory} color={GREEN} />
-                <StatCard label="Reply Rate" value={replyRate} sub={`${replies?.total ?? 0} total replies`} />
-              </div>
-              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}` }}>
-                  <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>RECENT ACTIVITY</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  {activity.length === 0 && <div style={{ padding: 20, color: MUTED, fontSize: 11, fontFamily: "monospace" }}>No activity yet.</div>}
-                  {activity.slice(0, 10).map((item, i) => (
-                    <div key={i} style={{ display: "flex", gap: 16, padding: "10px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "flex-start" }}>
-                      <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", whiteSpace: "nowrap", paddingTop: 2, minWidth: 80 }}>{item.ts}</span>
-                      <span style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: 1, color: item.type === "SEND" ? BLUE : item.type === "REPLY" ? GREEN : item.type === "ERROR" ? RED : GOLD, minWidth: 60, paddingTop: 2 }}>{item.type}</span>
-                      <span style={{ fontSize: 12, color: TEXT, fontFamily: "monospace" }}>{item.msg}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+          {nav === "mission" && (
+            <MissionSection
+              role={role}
+              seatInfo={seatInfo}
+              totalContacted={totalContacted}
+              todaySends={todaySends}
+              replyRate={replyRate}
+              replies={replies}
+              pds={pds}
+              stephie={stephie}
+              agentRows={agentRows}
+              runningCount={runningCount}
+              activity={activity}
+              filteredActivity={filteredActivity}
+              activityFilter={activityFilter}
+              activitySenders={activitySenders}
+              activityTrades={activityTrades}
+              setDrillDown={setDrillDown}
+              setActivityFilter={setActivityFilter}
+              setSelectedActivity={setSelectedActivity}
+              StatCard={StatCard}
+              AgentRow={AgentRow}
+            />
           )}
 
-          {/* MISSION CONTROL — OWNER / ADMIN */}
-          {nav === "mission" && role !== "CLOSER" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-              <div className="stat-grid-4">
-                <StatCard label="Total Contacted" value={totalContacted.toLocaleString()} sub="All time, all campaigns" pulse onClick={() => setDrillDown("total")} />
-                <StatCard label="Today's Sends" value={todaySends} sub={`PDS: ${pds?.today ?? 0} · Stephie: ${stephie?.today ?? 0}`} color={GOLD} onClick={() => setDrillDown("today")} />
-                <StatCard label="Reply Rate" value={replyRate} sub={`${replies?.total ?? 0} replies / ${totalContacted} sends`} onClick={() => setDrillDown("replies")} />
-                <StatCard label="Pending Approvals" value="0" sub="Approval queue clear" color={GREEN} />
-              </div>
-
-              <div className="two-col-grid">
-                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-                  <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ACTIVE AGENTS</span>
-                    <span style={{ fontSize: 11, color: GREEN, fontFamily: "monospace" }}>{runningCount} RUNNING</span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "100px 80px 80px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
-                    <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>SCRIPT</span>
-                    <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>STATUS</span>
-                    <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1, textAlign: "right" }}>TODAY</span>
-                  </div>
-                  {agentRows.slice(0, 5).map((a, i) => <AgentRow key={i} {...a} />)}
-                </div>
-
-                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-                  <div style={{ padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ACTIVITY FEED</span>
-                    <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{filteredActivity.length} events</span>
-                  </div>
-                  {/* Filters */}
-                  <div style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                    {([
-                      { key: "sender"    as const, label: "SENDER", opts: activitySenders },
-                      { key: "trade"     as const, label: "TRADE",  opts: activityTrades  },
-                      { key: "eventType" as const, label: "TYPE",   opts: ["SEND","REPLY","ERROR"] },
-                    ] as const).map(({ key, label, opts }) => (
-                      <select key={key} value={activityFilter[key]} onChange={e => setActivityFilter(f => ({ ...f, [key]: e.target.value }))}
-                        style={{ background: DARK, border: `1px solid ${activityFilter[key] ? GOLD : BORDER}`, borderRadius: 4, padding: "4px 6px", color: activityFilter[key] ? TEXT : MUTED, fontSize: 9, fontFamily: "monospace", letterSpacing: 1, cursor: "pointer" }}>
-                        <option value="">ALL {label}S</option>
-                        {opts.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    ))}
-                    {(activityFilter.sender || activityFilter.trade || activityFilter.eventType) && (
-                      <button onClick={() => setActivityFilter({ sender: "", trade: "", eventType: "" })}
-                        style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "4px 8px", color: MUTED, fontSize: 9, fontFamily: "monospace", cursor: "pointer", letterSpacing: 1 }}>CLEAR</button>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                    {filteredActivity.length === 0 && <div style={{ padding: 20, color: MUTED, fontSize: 11, fontFamily: "monospace" }}>No activity matching filters.</div>}
-                    {filteredActivity.slice(0, 15).map((item, i) => (
-                      <div key={i} onClick={() => setSelectedActivity(item)}
-                        style={{ display: "flex", gap: 16, padding: "10px 20px", borderBottom: `1px solid ${BORDER}`, alignItems: "flex-start", cursor: "pointer" }}>
-                        <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", whiteSpace: "nowrap", paddingTop: 2, minWidth: 80 }}>{item.ts}</span>
-                        <span style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: 1, color: item.type === "SEND" ? BLUE : item.type === "REPLY" ? GREEN : item.type === "ERROR" ? RED : GOLD, minWidth: 60, paddingTop: 2 }}>{item.type}</span>
-                        <span style={{ fontSize: 12, color: TEXT, fontFamily: "monospace", flex: 1 }}>{item.msg}</span>
-                        <span style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", flexShrink: 0 }}>›</span>
-                      </div>
-                    ))}
-                    {filteredActivity.length > 15 && (
-                      <div style={{ padding: "10px 20px", color: MUTED, fontSize: 10, fontFamily: "monospace" }}>+{filteredActivity.length - 15} more — use filters to narrow</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="two-col-grid">
-                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 24 }}>
-                  <div style={{ fontSize: 11, letterSpacing: 2, color: MUTED, marginBottom: 16 }}>PDS OUTREACH</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div><div style={{ fontSize: 10, color: MUTED }}>TOTAL SENT</div><div style={{ fontSize: 24, color: TEXT, fontFamily: "monospace", marginTop: 4 }}>{pds?.total ?? 0}</div></div>
-                    <div><div style={{ fontSize: 10, color: MUTED }}>FORMS</div><div style={{ fontSize: 24, color: BLUE, fontFamily: "monospace", marginTop: 4 }}>{pds?.by_outcome.form ?? 0}</div></div>
-                    <div><div style={{ fontSize: 10, color: MUTED }}>EMAILS</div><div style={{ fontSize: 24, color: GOLD, fontFamily: "monospace", marginTop: 4 }}>{pds?.by_outcome.email ?? 0}</div></div>
-                    <div><div style={{ fontSize: 10, color: MUTED }}>TERRITORY</div><div style={{ fontSize: 13, color: TEXT, fontFamily: "monospace", marginTop: 4 }}>LA 80% · Desert 20%</div></div>
-                  </div>
-                </div>
-                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 24 }}>
-                  <div style={{ fontSize: 11, letterSpacing: 2, color: MUTED, marginBottom: 16 }}>STEPHIE / ITS LANDSCAPE</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div><div style={{ fontSize: 10, color: MUTED }}>TOTAL SENT</div><div style={{ fontSize: 24, color: TEXT, fontFamily: "monospace", marginTop: 4 }}>{stephie?.total ?? 0}</div></div>
-                    <div><div style={{ fontSize: 10, color: MUTED }}>FORMS</div><div style={{ fontSize: 24, color: BLUE, fontFamily: "monospace", marginTop: 4 }}>{stephie?.by_outcome.form ?? 0}</div></div>
-                    <div><div style={{ fontSize: 10, color: MUTED }}>EMAILS</div><div style={{ fontSize: 24, color: GOLD, fontFamily: "monospace", marginTop: 4 }}>{stephie?.by_outcome.email ?? 0}</div></div>
-                    <div><div style={{ fontSize: 10, color: MUTED }}>TERRITORY</div><div style={{ fontSize: 13, color: TEXT, fontFamily: "monospace", marginTop: 4 }}>Charlotte NC area</div></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* PIPELINE — CLOSER */}
-          {nav === "pipeline" && role === "CLOSER" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div className="stat-grid-3">
-                <StatCard label="My GHL Leads" value={closers.find(c => c.id === seatInfo.ghlId)?.leads ?? 0} sub="Contacts assigned to me" color={GREEN} pulse />
-                <StatCard label="My Sends" value={closers.find(c => c.id === seatInfo.ghlId)?.sends ?? 0} sub="Outreach attributed" color={BLUE} />
-                <StatCard label="Cold Deals" value={closers.find(c => c.id === seatInfo.ghlId)?.cold ?? 0} sub="No stale deals" color={GREEN} />
-              </div>
-              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}` }}>
-                  <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>MY PIPELINE</span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 80px 80px 80px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
-                  {["CLOSER", "TERRITORY", "LEADS", "SENDS", "COLD"].map((h, i) => (
-                    <span key={i} style={{ fontSize: 10, color: MUTED, letterSpacing: 1, textAlign: i > 1 ? "center" : "left" }}>{h}</span>
-                  ))}
-                </div>
-                {closers.filter(c => c.id === seatInfo.ghlId).map((c, i) => <CloserRow key={i} {...c} />)}
-              </div>
-            </div>
-          )}
-
-          {/* PIPELINE — OWNER / ADMIN */}
-          {nav === "pipeline" && role !== "CLOSER" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div className="stat-grid-3">
-                <StatCard label="Total GHL Contacts" value={ghlData?.total_contacts ?? "—"} sub="Across all closers" />
-                <StatCard label="Open Opportunities" value={ghlData?.open_opportunities ?? "—"} sub="Pipeline building" />
-                <StatCard label="Cold Deals" value="0" sub="No stale deals" color={GREEN} />
-              </div>
-
-              {/* Tab bar */}
-              <div style={{ display: "flex", gap: 0, background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 4, width: "fit-content" }}>
-                {(["closers", "contacts", "opportunities"] as const).map(tab => (
-                  <button key={tab} onClick={() => setPipelineTab(tab)} style={{ background: pipelineTab === tab ? GOLD : "none", border: "none", borderRadius: 7, padding: "7px 18px", color: pipelineTab === tab ? DARK : MUTED, fontSize: 10, fontWeight: 700, letterSpacing: 1, cursor: "pointer", fontFamily: "monospace", transition: "all 0.15s" }}>
-                    {tab.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-
-              {/* CLOSERS tab */}
-              {pipelineTab === "closers" && (
-                <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-                  <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}` }}>
-                    <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>CLOSER PERFORMANCE</span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 80px 80px 80px 20px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
-                    {["CLOSER", "TERRITORY", "LEADS", "SENDS", "COLD", ""].map((h, i) => (
-                      <span key={i} style={{ fontSize: 10, color: MUTED, letterSpacing: 1, textAlign: i > 1 ? "center" : "left" }}>{h}</span>
-                    ))}
-                  </div>
-                  {closers.map((c, i) => <CloserRow key={i} {...c} onClick={() => setSelectedCloser(c)} />)}
-                </div>
-              )}
-
-              {/* CONTACTS tab (1.5) */}
-              {pipelineTab === "contacts" && <ContactsPanel pipelineTab={pipelineTab} />}
-
-              {/* OPPORTUNITIES tab (1.6) */}
-              {pipelineTab === "opportunities" && <OpportunitiesPanel pipelineTab={pipelineTab} />}
-            </div>
+          {nav === "pipeline" && (
+            <PipelineSection
+              role={role}
+              seatInfo={seatInfo}
+              closers={closers}
+              ghlData={ghlData}
+              pipelineTab={pipelineTab}
+              setPipelineTab={setPipelineTab}
+              setSelectedCloser={setSelectedCloser}
+              CloserRow={CloserRow}
+              ContactsPanel={ContactsPanel}
+              OpportunitiesPanel={OpportunitiesPanel}
+            />
           )}
 
           {/* OUTREACH */}
@@ -1600,62 +1564,17 @@ export default function Dashboard() {
             <CampaignHealthSection campaigns={stats?.campaigns ?? []} />
           )}
 
-          {/* AGENTS — CLOSER */}
-          {nav === "agents" && role === "CLOSER" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 32 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-                  <img src="/ace-logo.png" alt="" style={{ width: 40, height: 40 }} />
-                  <div>
-                    <div style={{ fontSize: 18, color: GOLD, fontFamily: "monospace", fontWeight: 700 }}>{seatInfo.agentName.toUpperCase()}</div>
-                    <div style={{ fontSize: 11, color: MUTED, letterSpacing: 2, marginTop: 4 }}>YOUR AGENT</div>
-                  </div>
-                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: GREEN, boxShadow: `0 0 6px ${GREEN}` }} />
-                    <span style={{ fontSize: 11, color: GREEN }}>ACTIVE</span>
-                  </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-                  <div style={{ background: DARK, borderRadius: 8, padding: 16 }}>
-                    <div style={{ fontSize: 10, color: MUTED, letterSpacing: 1, marginBottom: 6 }}>HANDLE</div>
-                    <div style={{ fontSize: 13, color: TEXT, fontFamily: "monospace" }}>@{seatInfo.agentHandle}</div>
-                  </div>
-                  <div style={{ background: DARK, borderRadius: 8, padding: 16 }}>
-                    <div style={{ fontSize: 10, color: MUTED, letterSpacing: 1, marginBottom: 6 }}>TERRITORY</div>
-                    <div style={{ fontSize: 13, color: TEXT, fontFamily: "monospace" }}>{seatInfo.territory}</div>
-                  </div>
-                </div>
-                <div style={{ color: MUTED, fontSize: 11, fontFamily: "monospace", lineHeight: 1.8 }}>
-                  Talk to {seatInfo.agentName} using the chat bar below. Your agent has access to your leads, pipeline data, and outreach stats.
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* AGENTS — OWNER / ADMIN */}
-          {nav === "agents" && role !== "CLOSER" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div className="stat-grid-4">
-                <StatCard label="Total Agents" value="6" sub="Ace · Trinity · Atlas · Forge · Ridge · Crest" pulse />
-                <StatCard label="Cron Scripts" value={Object.keys(SCHEDULES).length} sub="Active scheduled jobs" />
-                <StatCard label="Running Now" value={runningCount} sub="Live agents" color={GREEN} />
-                <StatCard label="Errors Today" value={agentRows.filter(a => a.status === "error").length} sub={agentRows.filter(a => a.status === "error").length === 0 ? "All clear" : "Check logs"} color={agentRows.filter(a => a.status === "error").length > 0 ? RED : GREEN} />
-              </div>
-              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 11, letterSpacing: 2, color: MUTED }}>ALL AGENTS</span>
-                  <span style={{ fontSize: 10, color: MUTED }}>6 agents connected via PILOT protocol</span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 140px 140px 80px", padding: "10px 20px", borderBottom: `1px solid ${BORDER}` }}>
-                  {["SCRIPT", "STATUS", "LAST RUN", "NEXT RUN", "TODAY"].map((h, i) => (
-                    <span key={i} style={{ fontSize: 10, color: MUTED, letterSpacing: 1, textAlign: i === 4 ? "right" : "left" }}>{h}</span>
-                  ))}
-                </div>
-                {agentRows.map((a, i) => (
-                  <AgentRow key={i} {...a} onClick={LOG_PATHS_HAVE.has(a.name) ? () => setSelectedAgent(a.name) : undefined} />
-                ))}
-              </div>
-            </div>
+          {nav === "agents" && (
+            <AgentsSection
+              role={role}
+              seatInfo={seatInfo}
+              agentRows={agentRows}
+              runningCount={runningCount}
+              SCHEDULES={SCHEDULES}
+              LOG_PATHS_HAVE={LOG_PATHS_HAVE}
+              setSelectedAgent={setSelectedAgent}
+              AgentRow={AgentRow}
+            />
           )}
 
           {/* WORKSPACE */}
@@ -1683,12 +1602,12 @@ export default function Dashboard() {
               <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 32 }}>
                 <div style={{ fontSize: 11, letterSpacing: 2, color: MUTED, marginBottom: 16 }}>ACCESS</div>
                 {[
-                  { role: "SUPER_ADMIN", user: "Ron Parent",      access: "Full system access" },
-                  { role: "ADMIN",       user: "Taylor Posey",    access: "Pipeline + team management" },
-                  { role: "CLOSER",      user: "Joel Davis",      access: "Own leads only" },
-                  { role: "CLOSER",      user: "Frank Leon",      access: "Own leads only" },
-                  { role: "CLOSER",      user: "Mickey Parson",   access: "Own leads only" },
-                  { role: "CLOSER",      user: "Armen Pogosian",  access: "Own leads only" },
+                  { role: "SUPER_ADMIN", user: "Ron Parent", access: "Full system access" },
+                  { role: "ADMIN", user: "Taylor Posey", access: "Pipeline + team management" },
+                  { role: "CLOSER", user: "Joel Davis", access: "Own leads only" },
+                  { role: "CLOSER", user: "Frank Leon", access: "Own leads only" },
+                  { role: "CLOSER", user: "Mickey Parson", access: "Own leads only" },
+                  { role: "CLOSER", user: "Armen Pogosian", access: "Own leads only" },
                 ].map((u, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${BORDER}` }}>
                     <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
@@ -1748,12 +1667,12 @@ export default function Dashboard() {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
-                { label: "PDS Total",     value: pds?.total ?? 0,                color: TEXT },
-                { label: "Stephie Total", value: stephie?.total ?? 0,            color: TEXT },
-                { label: "Forms",         value: (pds?.by_outcome.form ?? 0) + (stephie?.by_outcome.form ?? 0),   color: BLUE },
-                { label: "Emails",        value: (pds?.by_outcome.email ?? 0) + (stephie?.by_outcome.email ?? 0), color: GOLD },
-                { label: "Skipped",       value: (pds?.by_outcome.skip ?? 0) + (stephie?.by_outcome.skip ?? 0),   color: MUTED },
-                { label: "Errors",        value: (pds?.by_outcome.error ?? 0) + (stephie?.by_outcome.error ?? 0), color: RED },
+                { label: "PDS Total", value: pds?.total ?? 0, color: TEXT },
+                { label: "Stephie Total", value: stephie?.total ?? 0, color: TEXT },
+                { label: "Forms", value: (pds?.by_outcome.form ?? 0) + (stephie?.by_outcome.form ?? 0), color: BLUE },
+                { label: "Emails", value: (pds?.by_outcome.email ?? 0) + (stephie?.by_outcome.email ?? 0), color: GOLD },
+                { label: "Skipped", value: (pds?.by_outcome.skip ?? 0) + (stephie?.by_outcome.skip ?? 0), color: MUTED },
+                { label: "Errors", value: (pds?.by_outcome.error ?? 0) + (stephie?.by_outcome.error ?? 0), color: RED },
               ].map(({ label, value, color }) => (
                 <div key={label} style={{ background: DARK, borderRadius: 8, padding: 14 }}>
                   <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>{label}</div>
@@ -1779,12 +1698,12 @@ export default function Dashboard() {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
-                { label: "PDS Today",     value: pds?.today ?? 0,                          color: TEXT },
-                { label: "Stephie Today", value: stephie?.today ?? 0,                      color: TEXT },
-                { label: "Forms",         value: (pds?.today_by_outcome.form ?? 0) + (stephie?.today_by_outcome.form ?? 0),   color: BLUE },
-                { label: "Emails",        value: (pds?.today_by_outcome.email ?? 0) + (stephie?.today_by_outcome.email ?? 0), color: GOLD },
-                { label: "Skipped",       value: (pds?.today_by_outcome.skip ?? 0) + (stephie?.today_by_outcome.skip ?? 0),   color: MUTED },
-                { label: "Errors",        value: (pds?.today_by_outcome.error ?? 0) + (stephie?.today_by_outcome.error ?? 0), color: RED },
+                { label: "PDS Today", value: pds?.today ?? 0, color: TEXT },
+                { label: "Stephie Today", value: stephie?.today ?? 0, color: TEXT },
+                { label: "Forms", value: (pds?.today_by_outcome.form ?? 0) + (stephie?.today_by_outcome.form ?? 0), color: BLUE },
+                { label: "Emails", value: (pds?.today_by_outcome.email ?? 0) + (stephie?.today_by_outcome.email ?? 0), color: GOLD },
+                { label: "Skipped", value: (pds?.today_by_outcome.skip ?? 0) + (stephie?.today_by_outcome.skip ?? 0), color: MUTED },
+                { label: "Errors", value: (pds?.today_by_outcome.error ?? 0) + (stephie?.today_by_outcome.error ?? 0), color: RED },
               ].map(({ label, value, color }) => (
                 <div key={label} style={{ background: DARK, borderRadius: 8, padding: 14 }}>
                   <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 4 }}>{label}</div>

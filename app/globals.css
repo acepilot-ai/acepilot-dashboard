@@ -27,7 +27,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -40,9 +41,11 @@ html, body {
   width: 4px;
   height: 4px;
 }
+
 ::-webkit-scrollbar-track {
   background: var(--bg);
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 2px;
@@ -101,18 +104,39 @@ html, body {
 }
 
 /* ── Responsive grids ── */
-.stat-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.stat-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.two-col-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.stat-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
 
-/* ── Mobile (≤ 767px) ── */
-@media (max-width: 767px) {
-  /* Sidebar gone on mobile — bottom nav replaces it */
-  .sidebar { display: none; }
+.stat-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
 
-  .content-area { padding: 16px; }
+.two-col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
 
-  .footer-bar { display: none; }
+/* ── Mobile + Tablet (≤ 1023px) ── */
+@media (max-width: 1023px) {
+
+  /* Sidebar gone — bottom nav replaces it */
+  .sidebar {
+    display: none;
+  }
+
+  .content-area {
+    padding: 16px;
+  }
+
+  .footer-bar {
+    display: none;
+  }
 
   .bottom-nav {
     display: flex;
@@ -120,7 +144,23 @@ html, body {
     height: 56px;
   }
 
-  .stat-grid-4 { grid-template-columns: repeat(2, 1fr); }
-  .stat-grid-3 { grid-template-columns: repeat(2, 1fr); }
-  .two-col-grid { grid-template-columns: 1fr; }
+  .stat-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .two-col-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Tablet only (768px – 1023px) ── */
+@media (min-width: 768px) and (max-width: 1023px) {
+
+  .content-area {
+    padding: 24px;
+  }
 }
