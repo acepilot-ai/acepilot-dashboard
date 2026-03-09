@@ -113,7 +113,7 @@ export default function MissionSection(props: MissionSectionProps) {
               </select>
             ))}
             {(activityFilter.sender || activityFilter.trade || activityFilter.eventType) && (
-              <button onClick={() => setActivityFilter({ sender: "", trade: "", eventType: "" })}
+              <button onClick={() => setActivityFilter(f => ({ sender: "", trade: "", eventType: "" }))}
                 style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "4px 8px", color: MUTED, fontSize: 9, fontFamily: "monospace", cursor: "pointer", letterSpacing: 1 }}>CLEAR</button>
             )}
           </div>
