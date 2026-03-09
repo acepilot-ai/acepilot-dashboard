@@ -5,7 +5,7 @@ interface PipelineSectionProps {
   role: string;
   seatInfo: { ghlId: string };
   closers: any[];
-  ghlData?: { total_contacts?: number; open_opportunities?: number };
+  ghlData?: { total_contacts?: number; open_opportunities?: number } | null;
   pipelineTab: "closers" | "contacts" | "opportunities";
   setPipelineTab: (tab: "closers" | "contacts" | "opportunities") => void;
   setSelectedCloser: (closer: any) => void;
