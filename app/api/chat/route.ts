@@ -265,14 +265,19 @@ const CLOSER_AGENTS = ['atlas', 'forge', 'ridge', 'crest']
 
 async function fetchStats(): Promise<string> {
   try {
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000'
-    const resp = await fetch(`${baseUrl}/api/stats`, {
+    // Fetch directly from Gist to avoid HTTP self-call port issues in dev
+    const gistId = process.env.STATS_GIST_ID
+    const token  = process.env.GITHUB_TOKEN
+    if (!gistId) return ''
+    const gistResp = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: token ? { Authorization: `token ${token}` } : {},
       cache: 'no-store',
     })
-    if (!resp.ok) return ''
-    const data = await resp.json()
+    if (!gistResp.ok) return ''
+    const gist = await gistResp.json()
+    const content = gist.files?.['stats_cache.json']?.content
+    if (!content) return ''
+    const data = JSON.parse(content)
 
     // Format stats context for Claude
     const pds = data.pds || {}
