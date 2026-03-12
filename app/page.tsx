@@ -11,6 +11,7 @@ import MissionSection from "./components/sections/MissionSection";
 import PipelineSection from "./components/sections/PipelineSection";
 import AgentsSection from "./components/sections/AgentsSection";
 import { GOLD, DARK, PANEL, BORDER, TEXT, MUTED, GREEN, RED, BLUE } from "./lib/theme";
+import { DEMO_STATS, DEMO_GHL } from "./lib/demo-data";
 
 type NavItem = "mission" | "pipeline" | "analytics" | "campaigns" | "outreach" | "agents" | "workspace" | "settings";
 
@@ -1276,10 +1277,20 @@ export default function Dashboard() {
     }, ...prev].slice(0, 50));
   }, []);
 
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => {
+    setIsDemo(new URLSearchParams(window.location.search).get("demo") === "1");
+  }, []);
+
   const time = useClock();
-  const { data: stats, loading: statsLoading, lastUpdated } = useStats();
-  const { data: ghl } = useGHL();
+  const { data: liveStats, loading: liveStatsLoading, lastUpdated: liveLastUpdated } = useStats();
+  const { data: liveGhl } = useGHL();
   const channel = usePollingChannel(15_000);
+
+  const stats = isDemo ? DEMO_STATS : liveStats;
+  const ghl   = isDemo ? DEMO_GHL   : liveGhl;
+  const statsLoading = isDemo ? false : liveStatsLoading;
+  const lastUpdated  = isDemo ? new Date() : liveLastUpdated;
 
   useEffect(() => {
     setRole(getCookie("ace_role") || "SUPER_ADMIN");
@@ -1399,6 +1410,11 @@ export default function Dashboard() {
         <div style={{ padding: "0 24px 28px", borderBottom: `1px solid ${BORDER}` }}>
           <img src="/ace-logo.png" alt="AcePilot" style={{ width: 48, height: 48 }} />
           <div style={{ fontSize: 10, color: MUTED, letterSpacing: 3, marginTop: 6 }}>ACEPILOT.AI</div>
+          {isDemo && (
+            <div style={{ marginTop: 8, display: "inline-block", background: "#7c5a00", border: `1px solid ${GOLD}`, borderRadius: 4, padding: "2px 8px", fontSize: 9, color: GOLD, letterSpacing: 2, fontFamily: "monospace" }}>
+              DEMO
+            </div>
+          )}
         </div>
         <nav style={{ padding: "20px 0", flex: 1 }}>
           {navItems.map(item => (
@@ -1439,6 +1455,22 @@ export default function Dashboard() {
 
       {/* Main */}
       <div className="main-col">
+        {/* Demo banner */}
+        {isDemo && (
+          <div style={{
+            background: "#7c5a00", borderBottom: `1px solid ${GOLD}`,
+            padding: "8px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
+            flexShrink: 0, zIndex: 10,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 10, letterSpacing: 2, color: GOLD, fontFamily: "monospace", fontWeight: 700 }}>⚠ DEMO MODE</span>
+              <span style={{ fontSize: 11, color: "#e8c96a", fontFamily: "monospace" }}>
+                Sample data only — BreezePro HVAC (fictional). No real business data is shown.
+              </span>
+            </div>
+            <span style={{ fontSize: 10, color: GOLD, fontFamily: "monospace", letterSpacing: 1, opacity: 0.7 }}>?demo=1</span>
+          </div>
+        )}
         {/* Top bar */}
         <div style={{ padding: "16px 24px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: PANEL, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
