@@ -7,6 +7,7 @@ import {
 import { usePollingChannel, type ThreadMessage, type AgentId } from "./hooks/usePilotChannel";
 import AnalyticsSection from "./components/sections/AnalyticsSection";
 import CampaignHealthSection from "./components/sections/CampaignHealthSection";
+import CampaignControlsSection from "./components/sections/CampaignControlsSection";
 import MissionSection from "./components/sections/MissionSection";
 import PipelineSection from "./components/sections/PipelineSection";
 import AgentsSection from "./components/sections/AgentsSection";
@@ -1266,6 +1267,7 @@ export default function Dashboard() {
   const [drillDown, setDrillDown] = useState<string | null>(null);
   const [pipelineTab, setPipelineTab] = useState<"closers" | "contacts" | "opportunities">("closers");
   const [analyticsTab, setAnalyticsTab] = useState<"volume" | "trades" | "senders" | "territory">("volume");
+  const [campaignsTab, setCampaignsTab] = useState<"health" | "controls">("health");
   const [selectedCloser, setSelectedCloser] = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
   const [dateStr, setDateStr] = useState<string>("");
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
@@ -1591,9 +1593,20 @@ export default function Dashboard() {
             />
           )}
 
-          {/* CAMPAIGN HEALTH */}
+          {/* CAMPAIGNS — Health + Controls */}
           {nav === "campaigns" && (
-            <CampaignHealthSection campaigns={stats?.campaigns ?? []} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {/* Tab switcher */}
+              <div style={{ display: "flex", gap: 4 }}>
+                {([["health", "HEALTH"], ["controls", "CONTROLS"]] as const).map(([id, label]) => (
+                  <button key={id} onClick={() => setCampaignsTab(id)} style={{ background: campaignsTab === id ? GOLD + "22" : "transparent", border: `1px solid ${campaignsTab === id ? GOLD : BORDER}`, borderRadius: 6, padding: "6px 18px", fontSize: 10, color: campaignsTab === id ? GOLD : MUTED, fontFamily: "monospace", letterSpacing: 1, cursor: "pointer" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {campaignsTab === "health" && <CampaignHealthSection campaigns={stats?.campaigns ?? []} />}
+              {campaignsTab === "controls" && <CampaignControlsSection campaigns={stats?.campaigns ?? []} isDemo={isDemo} />}
+            </div>
           )}
 
           {nav === "agents" && (
