@@ -18,12 +18,15 @@ type NavItem = "mission" | "pipeline" | "analytics" | "campaigns" | "outreach" |
 
 interface Notification {
   id: string;
-  type: "PILOT" | "INTERESTED" | "ERROR";
+  type: "PILOT" | "INTERESTED" | "ERROR" | "MILESTONE";
   msg: string;
   ts: string;
   read: boolean;
   navTarget: NavItem;
 }
+
+type NotifPrefs = { PILOT: boolean; INTERESTED: boolean; ERROR: boolean; MILESTONE: boolean };
+const DEFAULT_PREFS: NotifPrefs = { PILOT: true, INTERESTED: true, ERROR: true, MILESTONE: true };
 
 // Seat → human + agent info. Single source of truth for role-scoped views.
 const SEAT_MAP: Record<string, { name: string; senderName: string; ghlId: string; agentHandle: string; agentName: string; territory: string }> = {
@@ -1123,27 +1126,30 @@ function AgentLogPanel({ script }: { script: string }) {
 
 // ── Notification Bell ─────────────────────────────────────────────────────────
 
-function NotificationBell({ notifications, unread, onMarkAllRead, onClear, onMarkRead, onNavigate }: {
+function NotificationBell({ notifications, unread, onMarkAllRead, onClear, onMarkRead, onNavigate, prefs, onSavePref }: {
   notifications: Notification[];
   unread: number;
   onMarkAllRead: () => void;
   onClear: () => void;
   onMarkRead: (id: string) => void;
   onNavigate: (target: NavItem) => void;
+  prefs: NotifPrefs;
+  onSavePref: (type: keyof NotifPrefs, value: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [showPrefs, setShowPrefs] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setShowPrefs(false); }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const TYPE_ICON: Record<string, string> = { PILOT: "🔔", INTERESTED: "📨", ERROR: "🚨" };
-  const TYPE_COLOR: Record<string, string> = { PILOT: GOLD, INTERESTED: GREEN, ERROR: RED };
+  const TYPE_ICON: Record<string, string> = { PILOT: "🔔", INTERESTED: "📨", ERROR: "🚨", MILESTONE: "🏁" };
+  const TYPE_COLOR: Record<string, string> = { PILOT: GOLD, INTERESTED: GREEN, ERROR: RED, MILESTONE: BLUE };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -1178,8 +1184,24 @@ function NotificationBell({ notifications, unread, onMarkAllRead, onClear, onMar
             <div style={{ display: "flex", gap: 12 }}>
               <button onClick={onMarkAllRead} style={{ background: "none", border: "none", color: MUTED, fontSize: 9, cursor: "pointer", letterSpacing: 1, fontFamily: "monospace" }}>MARK READ</button>
               <button onClick={onClear} style={{ background: "none", border: "none", color: MUTED, fontSize: 9, cursor: "pointer", letterSpacing: 1, fontFamily: "monospace" }}>CLEAR ALL</button>
+              <button onClick={() => setShowPrefs(p => !p)} style={{ background: "none", border: "none", color: showPrefs ? GOLD : MUTED, fontSize: 12, cursor: "pointer", lineHeight: 1 }}>⚙</button>
             </div>
           </div>
+          {showPrefs && (
+            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: DARK }}>
+              <div style={{ fontSize: 9, color: MUTED, letterSpacing: 1, marginBottom: 10, fontFamily: "monospace" }}>NOTIFICATION PREFERENCES</div>
+              {(["PILOT", "INTERESTED", "ERROR", "MILESTONE"] as const).map(type => (
+                <div key={type} onClick={() => onSavePref(type, !prefs[type])} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", cursor: "pointer" }}>
+                  <span style={{ fontSize: 11, color: prefs[type] ? TEXT : MUTED, fontFamily: "monospace" }}>
+                    {TYPE_ICON[type]} {type === "PILOT" ? "Agent Messages" : type === "INTERESTED" ? "Interested Replies" : type === "ERROR" ? "Script Errors" : "Campaign Milestones"}
+                  </span>
+                  <div style={{ width: 36, height: 20, borderRadius: 10, background: prefs[type] ? GREEN + "44" : DARK, border: `1px solid ${prefs[type] ? GREEN : BORDER}`, position: "relative", transition: "all 0.2s" }}>
+                    <div style={{ position: "absolute", top: 2, left: prefs[type] ? 16 : 2, width: 14, height: 14, borderRadius: "50%", background: prefs[type] ? GREEN : MUTED, transition: "all 0.2s" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ maxHeight: 340, overflowY: "auto" }}>
             {notifications.length === 0 && (
               <div style={{ padding: 28, color: MUTED, fontSize: 11, fontFamily: "monospace", textAlign: "center" }}>No notifications.</div>
@@ -1261,6 +1283,7 @@ export default function Dashboard() {
   const [seatId, setSeatId] = useState<string>("");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
   const [activityFilter, setActivityFilter] = useState({ sender: "", trade: "", eventType: "" });
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
@@ -1271,12 +1294,21 @@ export default function Dashboard() {
   const [selectedCloser, setSelectedCloser] = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
   const [dateStr, setDateStr] = useState<string>("");
   const addNotification = useCallback((n: Omit<Notification, "id" | "ts" | "read">) => {
-    setNotifications(prev => [{
-      ...n,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      ts: new Date().toLocaleTimeString("en-US", { hour12: false, timeZone: "America/Los_Angeles" }) + " PST",
-      read: false,
-    }, ...prev].slice(0, 50));
+    setNotifPrefs(currentPrefs => {
+      if (!currentPrefs[n.type as keyof NotifPrefs]) return currentPrefs;
+      const newNotif: Notification = {
+        ...n,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        ts: new Date().toLocaleTimeString("en-US", { hour12: false, timeZone: "America/Los_Angeles" }) + " PST",
+        read: false,
+      };
+      setNotifications(prev => {
+        const updated = [newNotif, ...prev].slice(0, 50);
+        fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_notifications", notifications: updated }) }).catch(() => {});
+        return updated;
+      });
+      return currentPrefs;
+    });
   }, []);
 
   const [isDemo, setIsDemo] = useState(false);
@@ -1295,9 +1327,15 @@ export default function Dashboard() {
   const lastUpdated  = isDemo ? new Date() : liveLastUpdated;
 
   useEffect(() => {
+    const seat = getCookie("ace_seat") || "seat_ron";
     setRole(getCookie("ace_role") || "SUPER_ADMIN");
-    setSeatId(getCookie("ace_seat") || "");
+    setSeatId(seat);
     setDateStr(new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }));
+    // Load notifications + prefs from Gist
+    fetch("/api/notifications").then(r => r.json()).then(data => {
+      if (Array.isArray(data.notifications) && data.notifications.length) setNotifications(data.notifications);
+      if (data.prefs?.[seat]) setNotifPrefs({ ...DEFAULT_PREFS, ...data.prefs[seat] });
+    }).catch(() => {});
   }, []);
 
   // Resolve seat info for scoped views
@@ -1385,6 +1423,30 @@ export default function Dashboard() {
     });
     seenErrors.current.forEach(name => { if (!currentErrors.has(name)) seenErrors.current.delete(name); });
   }, [agentRows, addNotification]);
+
+  // ── Milestone watcher ────────────────────────────────────────────────────────
+  const seenMilestones = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!stats) return;
+    const sends = (stats.pds?.today ?? 0) + (stats.stephie?.today ?? 0);
+    const total = (stats.pds?.total ?? 0) + (stats.stephie?.total ?? 0);
+    const dailyThresholds = [100, 200, 300];
+    const totalThresholds = [10000, 25000, 50000, 100000];
+    dailyThresholds.forEach(t => {
+      const key = `day-${t}`;
+      if (sends >= t && !seenMilestones.current.has(key)) {
+        seenMilestones.current.add(key);
+        addNotification({ type: "MILESTONE", msg: `${t.toLocaleString()} sends reached today`, navTarget: "campaigns" });
+      }
+    });
+    totalThresholds.forEach(t => {
+      const key = `total-${t}`;
+      if (total >= t && !seenMilestones.current.has(key)) {
+        seenMilestones.current.add(key);
+        addNotification({ type: "MILESTONE", msg: `${t.toLocaleString()} total sends milestone reached`, navTarget: "campaigns" });
+      }
+    });
+  }, [stats, addNotification]);
 
   // GHL derived
   const ghlData: GHLData | null = ghl;
@@ -1489,10 +1551,27 @@ export default function Dashboard() {
             <NotificationBell
               notifications={notifications}
               unread={notifications.filter(n => !n.read).length}
-              onMarkAllRead={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
-              onClear={() => setNotifications([])}
-              onMarkRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))}
+              onMarkAllRead={() => {
+                const updated = notifications.map(n => ({ ...n, read: true }));
+                setNotifications(updated);
+                fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_notifications", notifications: updated }) }).catch(() => {});
+              }}
+              onClear={() => {
+                setNotifications([]);
+                fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_notifications", notifications: [] }) }).catch(() => {});
+              }}
+              onMarkRead={(id) => {
+                const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
+                setNotifications(updated);
+                fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_notifications", notifications: updated }) }).catch(() => {});
+              }}
               onNavigate={(target) => setNav(target)}
+              prefs={notifPrefs}
+              onSavePref={(type, value) => {
+                const updated = { ...notifPrefs, [type]: value };
+                setNotifPrefs(updated);
+                fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_prefs", seatId: seatId || "seat_ron", prefs: updated }) }).catch(() => {});
+              }}
             />
           </div>
         </div>
