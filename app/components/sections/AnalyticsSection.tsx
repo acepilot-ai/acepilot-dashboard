@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -72,9 +73,19 @@ interface Props {
 }
 
 export default function AnalyticsSection({ stats, ghlData, analyticsTab, setAnalyticsTab }: Props) {
+  const [mapTerrFilter, setMapTerrFilter] = useState("");
   const pdsD  = stats?.pds;
   const stphD = stats?.stephie;
   const repD  = stats?.replies;
+
+  // Reply rate per territory — derived from activity feed (approximate, last ~50 events)
+  const terrReplyRate: Record<string, { replies: number; sends: number }> = {};
+  for (const item of stats?.activity ?? []) {
+    if (!item.territory) continue;
+    if (!terrReplyRate[item.territory]) terrReplyRate[item.territory] = { replies: 0, sends: 0 };
+    if (item.type === "REPLY") terrReplyRate[item.territory].replies++;
+    if (item.type === "SEND")  terrReplyRate[item.territory].sends++;
+  }
 
   // 30-day combined volume
   const vol30 = (pdsD?.rolling_30d ?? []).map((d, i) => ({
@@ -251,16 +262,19 @@ export default function AnalyticsSection({ stats, ghlData, analyticsTab, setAnal
                 const v     = byT[t];
                 const color = terrColor(t);
                 const reach = v.total > 0 ? ((v.form + v.email) / v.total * 100).toFixed(1) : "0.0";
+                const rr    = terrReplyRate[t];
+                const replyPct = rr && rr.sends > 0 ? (rr.replies / rr.sends * 100).toFixed(1) : null;
                 return (
                   <div key={t} style={{ background: PANEL, border: `1px solid ${color}33`, borderRadius: 10, padding: 16 }}>
                     <div style={{ fontSize: 9, color: MUTED, fontFamily: "monospace", letterSpacing: 1, marginBottom: 6 }}>TERRITORY</div>
                     <div style={{ fontSize: 12, color, fontFamily: "monospace", fontWeight: 700, marginBottom: 10 }}>{t.toUpperCase()}</div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                       {[
-                        { l: "SENDS",   v: v.total.toLocaleString(), c: TEXT  },
-                        { l: "REACH %", v: `${reach}%`,              c: color },
-                        { l: "FORMS",   v: v.form.toLocaleString(),  c: BLUE  },
-                        { l: "EMAILS",  v: v.email.toLocaleString(), c: BLUE  },
+                        { l: "SENDS",    v: v.total.toLocaleString(),                         c: TEXT  },
+                        { l: "REACH %",  v: `${reach}%`,                                      c: color },
+                        { l: "FORMS",    v: v.form.toLocaleString(),                          c: BLUE  },
+                        { l: "EMAILS",   v: v.email.toLocaleString(),                         c: BLUE  },
+                        { l: "~REPLY %", v: replyPct !== null ? `${replyPct}%` : "—",         c: replyPct !== null ? GREEN : MUTED },
                       ].map(({ l, v: val, c }) => (
                         <div key={l}>
                           <div style={{ fontSize: 8, color: MUTED, fontFamily: "monospace", letterSpacing: 1 }}>{l}</div>
@@ -285,7 +299,18 @@ export default function AnalyticsSection({ stats, ghlData, analyticsTab, setAnal
             </div>
 
             <ChartCard title="SEND DENSITY MAP">
-              <TerritoryMap byCity={byC} />
+              {/* Territory filter */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                <button onClick={() => setMapTerrFilter("")} style={{ background: !mapTerrFilter ? GOLD + "22" : "transparent", border: `1px solid ${!mapTerrFilter ? GOLD : BORDER}`, borderRadius: 6, padding: "4px 12px", fontSize: 9, color: !mapTerrFilter ? GOLD : MUTED, fontFamily: "monospace", letterSpacing: 1, cursor: "pointer" }}>
+                  ALL
+                </button>
+                {sortedTerrNames.map((t, i) => (
+                  <button key={t} onClick={() => setMapTerrFilter(mapTerrFilter === t ? "" : t)} style={{ background: mapTerrFilter === t ? PALETTE_COLORS[i % PALETTE_COLORS.length] + "22" : "transparent", border: `1px solid ${mapTerrFilter === t ? PALETTE_COLORS[i % PALETTE_COLORS.length] : BORDER}`, borderRadius: 6, padding: "4px 12px", fontSize: 9, color: mapTerrFilter === t ? PALETTE_COLORS[i % PALETTE_COLORS.length] : MUTED, fontFamily: "monospace", letterSpacing: 1, cursor: "pointer" }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <TerritoryMap byCity={byC} territory={mapTerrFilter || undefined} />
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 10 }}>
                 {sortedTerrNames.map((t, i) => (
                   <div key={t} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -293,6 +318,9 @@ export default function AnalyticsSection({ stats, ghlData, analyticsTab, setAnal
                     <span style={{ fontSize: 9, color: MUTED, fontFamily: "monospace" }}>{t}</span>
                   </div>
                 ))}
+              </div>
+              <div style={{ fontSize: 9, color: MUTED, fontFamily: "monospace", marginTop: 8 }}>
+                ~REPLY % is estimated from recent activity feed. For full territory reply analytics, update push-stats-cache.py to include replies per territory.
               </div>
             </ChartCard>
 
