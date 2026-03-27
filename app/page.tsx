@@ -1288,7 +1288,7 @@ export default function Dashboard() {
   const [activityFilter, setActivityFilter] = useState({ sender: "", trade: "", eventType: "" });
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [drillDown, setDrillDown] = useState<string | null>(null);
-  const [pipelineTab, setPipelineTab] = useState<"closers" | "contacts" | "opportunities">("closers");
+  const [pipelineTab, setPipelineTab] = useState<"closers" | "contacts" | "opportunities" | "leads">("closers");
   const [analyticsTab, setAnalyticsTab] = useState<"volume" | "trades" | "senders" | "territory">("volume");
   const [campaignsTab, setCampaignsTab] = useState<"health" | "controls">("health");
   const [selectedCloser, setSelectedCloser] = useState<{ name: string; id: string; territory: string; leads: number; sends: number; cold: number } | null>(null);
