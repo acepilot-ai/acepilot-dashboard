@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+const SYSTEM_PROMPT = `You are an automation setup assistant for AcePilot. Your job is to interview a business owner and gather everything needed to configure a voice agent for their local service business.
+
+Ask ONE question at a time. Be conversational and brief. No bullet lists in your questions. Acknowledge what they just told you before asking the next thing.
+
+Gather in this order:
+1. Business name and type (plumber, HVAC, landscaper, electrician, etc.)
+2. City and service area
+3. Primary use — inbound calls, outbound follow-up, or both
+4. Business hours (days and times)
+5. Booking process — do they use booking software, or should the agent collect name/number/issue and hand off?
+6. Voice provider preference — ElevenLabs (better voice quality, slightly higher cost) or Vapi (faster, lower cost). Briefly explain if they seem unsure.
+7. Phone number provider — Twilio or Telnyx. Briefly explain if they seem unsure.
+8. CRM — GoHighLevel, another system, or none (leads go to email)
+
+Once you have all 8 pieces, respond with EXACTLY this and nothing else:
+
+[CONFIG_READY]{"businessName":"...","businessType":"...","city":"...","serviceArea":"...","primaryUse":"...","hours":"...","bookingProcess":"...","voiceProvider":"elevenlabs or vapi","phoneProvider":"twilio or telnyx","crm":"ghl or email","summary":"2-3 sentence plain-English description of what will be built for this specific business"}`
+
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export async function POST(req: NextRequest) {
+  const { messages }: { messages: Message[] } = await req.json()
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 512,
+    system: SYSTEM_PROMPT,
+    messages,
+  })
+
+  const text = (response.content[0] as { type: string; text: string }).text.trim()
+
+  if (text.startsWith('[CONFIG_READY]')) {
+    try {
+      const json = text.slice('[CONFIG_READY]'.length).trim()
+      const config = JSON.parse(json)
+      return NextResponse.json({ phase: 'vault', config })
+    } catch {
+      // malformed JSON — keep chatting
+      return NextResponse.json({ phase: 'chat', content: text })
+    }
+  }
+
+  return NextResponse.json({ phase: 'chat', content: text })
+}

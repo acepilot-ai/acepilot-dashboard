@@ -11,10 +11,11 @@ import CampaignControlsSection from "./components/sections/CampaignControlsSecti
 import MissionSection from "./components/sections/MissionSection";
 import PipelineSection from "./components/sections/PipelineSection";
 import AgentsSection from "./components/sections/AgentsSection";
+import AutomationBuilderSection from "./components/sections/AutomationBuilderSection";
 import { GOLD, DARK, PANEL, BORDER, TEXT, MUTED, GREEN, RED, BLUE } from "./lib/theme";
 import { DEMO_STATS, DEMO_GHL } from "./lib/demo-data";
 
-type NavItem = "mission" | "pipeline" | "analytics" | "campaigns" | "outreach" | "agents" | "workspace" | "settings";
+type NavItem = "mission" | "pipeline" | "analytics" | "campaigns" | "outreach" | "agents" | "workspace" | "automation" | "settings";
 
 interface Notification {
   id: string;
@@ -1349,6 +1350,7 @@ export default function Dashboard() {
     { id: "outreach", label: "Outreach", roles: ["SUPER_ADMIN", "OWNER"] },
     { id: "agents", label: "Agents", roles: ["SUPER_ADMIN", "ADMIN", "CLOSER", "OWNER"] },
     { id: "workspace", label: "Workspace", roles: ["SUPER_ADMIN", "ADMIN", "CLOSER", "OWNER"] },
+    { id: "automation", label: "Build Agent", roles: ["SUPER_ADMIN", "OWNER"] },
     { id: "settings", label: "Settings", roles: ["SUPER_ADMIN", "OWNER"] },
   ];
   const navItems = allNavItems.filter(n => n.roles.includes(role));
@@ -1703,6 +1705,9 @@ export default function Dashboard() {
 
           {/* WORKSPACE */}
           {nav === "workspace" && <WorkspaceSection role={role} seatInfo={seatInfo} chatMessages={chatMessages} channel={channel} />}
+
+          {/* AUTOMATION BUILDER */}
+          {nav === "automation" && <AutomationBuilderSection />}
 
           {/* SETTINGS */}
           {nav === "settings" && (
