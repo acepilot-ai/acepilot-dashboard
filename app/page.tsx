@@ -12,6 +12,8 @@ import MissionSection from "./components/sections/MissionSection";
 import PipelineSection from "./components/sections/PipelineSection";
 import AgentsSection from "./components/sections/AgentsSection";
 import AutomationBuilderSection from "./components/sections/AutomationBuilderSection";
+import OnboardingOverlay, { useShowOnboarding } from "./components/OnboardingOverlay";
+import GettingStartedChecklist from "./components/GettingStartedChecklist";
 import { GOLD, DARK, PANEL, BORDER, TEXT, MUTED, GREEN, RED, BLUE } from "./lib/theme";
 import { DEMO_STATS, DEMO_GHL } from "./lib/demo-data";
 
@@ -250,6 +252,17 @@ function PilotChannel({ role, channel }: { role: string; channel: ReturnType<typ
           fontFamily: "monospace", letterSpacing: 1,
         }}>RELAY</button>
       </div>
+    </div>
+  );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+function EmptyState({ icon, title, body }: { icon: string; title: string; body: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px 24px", textAlign: "center", gap: 12 }}>
+      <div style={{ fontSize: 40 }}>{icon}</div>
+      <div style={{ color: GOLD, fontSize: 14, fontFamily: "monospace", fontWeight: 600 }}>{title}</div>
+      <div style={{ color: MUTED, fontSize: 12, fontFamily: "monospace", lineHeight: 1.7, maxWidth: 380 }}>{body}</div>
     </div>
   );
 }
@@ -1279,6 +1292,8 @@ function buildAgentRows(agentsData: StatsCache["agents"] | undefined) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const showOnboarding = useShowOnboarding();
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [nav, setNav] = useState<NavItem>("mission");
   const [role, setRole] = useState<string>("SUPER_ADMIN");
   const [seatId, setSeatId] = useState<string>("");
@@ -1581,45 +1596,66 @@ export default function Dashboard() {
         {/* Content */}
         <div className="content-area">
 
-          {/* MISSION CONTROL — CLOSER */}
+          {/* MISSION CONTROL */}
           {nav === "mission" && (
-            <MissionSection
-              role={role}
-              seatInfo={seatInfo}
-              totalContacted={totalContacted}
-              todaySends={todaySends}
-              replyRate={replyRate}
-              replies={replies}
-              pds={pds}
-              stephie={stephie}
-              agentRows={agentRows}
-              runningCount={runningCount}
-              activity={activity}
-              filteredActivity={filteredActivity}
-              activityFilter={activityFilter}
-              activitySenders={activitySenders}
-              activityTrades={activityTrades}
-              setDrillDown={setDrillDown}
-              setActivityFilter={setActivityFilter}
-              setSelectedActivity={setSelectedActivity}
-              StatCard={StatCard}
-              AgentRow={AgentRow}
-            />
+            <>
+              {role === "SUPER_ADMIN" && (
+                <GettingStartedChecklist onNavigate={(target) => setNav(target as NavItem)} />
+              )}
+              {!stats && !isDemo ? (
+                <EmptyState
+                  icon="🎯"
+                  title="Mission Control is warming up"
+                  body="No outreach data yet. Once your first campaign runs, live stats, agent activity, and reply streams will appear here."
+                />
+              ) : (
+                <MissionSection
+                  role={role}
+                  seatInfo={seatInfo}
+                  totalContacted={totalContacted}
+                  todaySends={todaySends}
+                  replyRate={replyRate}
+                  replies={replies}
+                  pds={pds}
+                  stephie={stephie}
+                  agentRows={agentRows}
+                  runningCount={runningCount}
+                  activity={activity}
+                  filteredActivity={filteredActivity}
+                  activityFilter={activityFilter}
+                  activitySenders={activitySenders}
+                  activityTrades={activityTrades}
+                  setDrillDown={setDrillDown}
+                  setActivityFilter={setActivityFilter}
+                  setSelectedActivity={setSelectedActivity}
+                  StatCard={StatCard}
+                  AgentRow={AgentRow}
+                />
+              )}
+            </>
           )}
 
           {nav === "pipeline" && (
-            <PipelineSection
-              role={role}
-              seatInfo={seatInfo}
-              closers={closers}
-              ghlData={ghlData}
-              pipelineTab={pipelineTab}
-              setPipelineTab={setPipelineTab}
-              setSelectedCloser={setSelectedCloser}
-              CloserRow={CloserRow}
-              ContactsPanel={ContactsPanel}
-              OpportunitiesPanel={OpportunitiesPanel}
-            />
+            !ghlData && !isDemo ? (
+              <EmptyState
+                icon="📋"
+                title="Pipeline is empty"
+                body="Connect your GoHighLevel account in Settings to sync contacts, opportunities, and closer performance automatically."
+              />
+            ) : (
+              <PipelineSection
+                role={role}
+                seatInfo={seatInfo}
+                closers={closers}
+                ghlData={ghlData}
+                pipelineTab={pipelineTab}
+                setPipelineTab={setPipelineTab}
+                setSelectedCloser={setSelectedCloser}
+                CloserRow={CloserRow}
+                ContactsPanel={ContactsPanel}
+                OpportunitiesPanel={OpportunitiesPanel}
+              />
+            )
           )}
 
           {/* OUTREACH */}
@@ -1666,28 +1702,44 @@ export default function Dashboard() {
 
           {/* ANALYTICS (2.1 / 2.2 / 2.3) */}
           {nav === "analytics" && (
-            <AnalyticsSection
-              stats={stats}
-              ghlData={ghlData}
-              analyticsTab={analyticsTab}
-              setAnalyticsTab={setAnalyticsTab}
-            />
+            !stats && !isDemo ? (
+              <EmptyState
+                icon="📊"
+                title="No analytics data yet"
+                body="Analytics populate after your first campaign runs. You'll see 30-day volume trends, reply rates by trade, sender performance, and territory heat maps."
+              />
+            ) : (
+              <AnalyticsSection
+                stats={stats}
+                ghlData={ghlData}
+                analyticsTab={analyticsTab}
+                setAnalyticsTab={setAnalyticsTab}
+              />
+            )
           )}
 
           {/* CAMPAIGNS — Health + Controls */}
           {nav === "campaigns" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {/* Tab switcher */}
-              <div style={{ display: "flex", gap: 4 }}>
-                {([["health", "HEALTH"], ["controls", "CONTROLS"]] as const).map(([id, label]) => (
-                  <button key={id} onClick={() => setCampaignsTab(id)} style={{ background: campaignsTab === id ? GOLD + "22" : "transparent", border: `1px solid ${campaignsTab === id ? GOLD : BORDER}`, borderRadius: 6, padding: "6px 18px", fontSize: 10, color: campaignsTab === id ? GOLD : MUTED, fontFamily: "monospace", letterSpacing: 1, cursor: "pointer" }}>
-                    {label}
-                  </button>
-                ))}
+            !stats?.campaigns?.length && !isDemo ? (
+              <EmptyState
+                icon="📡"
+                title="No campaigns configured"
+                body="Campaigns appear here once your outreach is set up. You'll be able to pause, resume, manage territories, and view message templates."
+              />
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {/* Tab switcher */}
+                <div style={{ display: "flex", gap: 4 }}>
+                  {([["health", "HEALTH"], ["controls", "CONTROLS"]] as const).map(([id, label]) => (
+                    <button key={id} onClick={() => setCampaignsTab(id)} style={{ background: campaignsTab === id ? GOLD + "22" : "transparent", border: `1px solid ${campaignsTab === id ? GOLD : BORDER}`, borderRadius: 6, padding: "6px 18px", fontSize: 10, color: campaignsTab === id ? GOLD : MUTED, fontFamily: "monospace", letterSpacing: 1, cursor: "pointer" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {campaignsTab === "health" && <CampaignHealthSection campaigns={stats?.campaigns ?? []} />}
+                {campaignsTab === "controls" && <CampaignControlsSection campaigns={stats?.campaigns ?? []} isDemo={isDemo} />}
               </div>
-              {campaignsTab === "health" && <CampaignHealthSection campaigns={stats?.campaigns ?? []} />}
-              {campaignsTab === "controls" && <CampaignControlsSection campaigns={stats?.campaigns ?? []} isDemo={isDemo} />}
-            </div>
+            )
           )}
 
           {nav === "agents" && (
@@ -1881,6 +1933,11 @@ export default function Dashboard() {
           </div>
         )}
       </Modal>
+
+      {/* ONBOARDING OVERLAY — shown once to new users */}
+      {showOnboarding && !onboardingDismissed && (
+        <OnboardingOverlay onDismiss={() => setOnboardingDismissed(true)} />
+      )}
 
     </div>
   );
