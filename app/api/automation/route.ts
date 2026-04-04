@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const SYSTEM_PROMPT = `You are an automation setup assistant for AcePilot. Your job is to interview a business owner and gather everything needed to configure a voice agent for their local service business.
 
@@ -29,22 +26,37 @@ interface Message {
 export async function POST(req: NextRequest) {
   const { messages }: { messages: Message[] } = await req.json()
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 512,
-    system: SYSTEM_PROMPT,
-    messages,
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return NextResponse.json({ error: 'Missing ANTHROPIC_API_KEY' }, { status: 500 })
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 512,
+      system: SYSTEM_PROMPT,
+      messages,
+    }),
   })
 
-  const text = (response.content[0] as { type: string; text: string }).text.trim()
+  if (!resp.ok) {
+    const error = await resp.text()
+    return NextResponse.json({ error }, { status: resp.status })
+  }
+
+  const data = await resp.json()
+  const text: string = data.content?.[0]?.text?.trim() ?? ''
 
   if (text.startsWith('[CONFIG_READY]')) {
     try {
-      const json = text.slice('[CONFIG_READY]'.length).trim()
-      const config = JSON.parse(json)
+      const config = JSON.parse(text.slice('[CONFIG_READY]'.length).trim())
       return NextResponse.json({ phase: 'vault', config })
     } catch {
-      // malformed JSON — keep chatting
       return NextResponse.json({ phase: 'chat', content: text })
     }
   }
