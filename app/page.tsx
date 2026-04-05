@@ -1281,8 +1281,11 @@ function buildAgentRows(agentsData: StatsCache["agents"] | undefined) {
     let status: "running" | "idle" | "error" = "idle";
     if (interval && live.last_modified) {
       const ageMins = (Date.now() - new Date(live.last_modified).getTime()) / 60000;
+      // Error threshold is at least 12 hours — Gist updates twice daily so
+      // high-frequency scripts (reply-monitor, tripwire) always look stale otherwise.
+      const errorThreshold = Math.max(interval * 3, 720);
       if (ageMins < interval * 1.5) status = "running";
-      else if (ageMins > interval * 3) status = "error";
+      else if (ageMins > errorThreshold) status = "error";
     }
     const lastRun = live.last_modified ? relativeTime(new Date(live.last_modified)) : "—";
     return { name: b.name, status, lastRun, nextRun: b.nextRun, todayCount: live.today_count };
